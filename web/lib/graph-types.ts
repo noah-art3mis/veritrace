@@ -40,6 +40,21 @@ export interface ClaimItem {
   rationale?: string; // one-line why, advisory
   /** false = provenance/synthetic/origin type this text build can't check → NEI by design. */
   checkable: boolean;
+  /** false = subjective/opinion/prediction, not a verifiable factual assertion (SAFE "irrelevant") → NEI, no search. Absent = check-worthy. */
+  checkworthy?: boolean;
+  /** Event date (ISO YYYY-MM-DD) parsed from the source — bounds the retrieval window. */
+  date?: string;
+  /** Proper nouns / numbers the decontextualizer injected that are absent from the source (over-specification audit). */
+  injected?: string[];
+}
+
+/** Per-verdict claim counts under a source — the graded "X of N supported" signal (SAFE F1@K). */
+export interface ClaimTally {
+  supported: number;
+  refuted: number;
+  conflicting: number;
+  nei: number;
+  total: number;
 }
 
 /** The raw pasted blob (tweet / post / message / article). Root of the graph. */
@@ -47,6 +62,7 @@ export interface SourceTextItem {
   id: string;
   text: string;
   verdict: Verdict | null; // aggregated, advisory
+  tally?: ClaimTally; // per-verdict claim counts (the support ratio)
 }
 
 /** The whole graph, flat by layer; edges are implied by the *Id back-references. */

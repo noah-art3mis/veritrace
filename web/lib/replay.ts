@@ -1,5 +1,6 @@
 import type { FactGraph, QuestionItem, EvidenceItem } from "./graph-types";
 import type { PipelineEvent } from "./pipeline/events";
+import { tallyClaims } from "./pipeline/verdict";
 
 interface TimedEvent {
   event: PipelineEvent;
@@ -62,7 +63,8 @@ export function graphToEvents(graph: FactGraph): TimedEvent[] {
     }
   }
 
-  add({ type: "source_verdict", verdict: graph.source.verdict ?? "nei" }, 380);
+  const tally = graph.source.tally ?? tallyClaims(graph.claims.map((c) => c.verdict ?? "nei"));
+  add({ type: "source_verdict", verdict: graph.source.verdict ?? "nei", tally }, 380);
   add({ type: "done" }, 0);
   return out;
 }

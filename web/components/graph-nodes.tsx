@@ -6,7 +6,7 @@ import type {
   EvidenceNode,
 } from "@/lib/graph-to-flow";
 import { VERDICT_META, STANCE_META, RELIABILITY_META } from "@/lib/visuals";
-import type { Verdict, Reliability } from "@/lib/graph-types";
+import type { Verdict, Reliability, ClaimTally } from "@/lib/graph-types";
 
 const handleStyle = { width: 7, height: 7, border: 0, background: "var(--ink-4)" };
 const IN = <Handle type="target" position={Position.Left} style={handleStyle} />;
@@ -92,6 +92,30 @@ function ReliabilityMeter({ reliability }: { reliability: Reliability }) {
 
 const cardShadow = "0 16px 36px -20px rgba(0,0,0,0.85)";
 
+/* The graded support ratio — "X of N supported", with the rest broken down (SAFE F1@K). */
+function SupportRatio({ tally }: { tally: ClaimTally }) {
+  if (tally.total === 0) return null;
+  const parts: { n: number; verdict: Verdict }[] = [
+    { n: tally.refuted, verdict: "refuted" },
+    { n: tally.conflicting, verdict: "conflicting" },
+    { n: tally.nei, verdict: "nei" },
+  ];
+  return (
+    <div className="mt-2.5 flex items-center gap-2 px-1 font-mono text-[9.5px] uppercase tracking-wider">
+      <span style={{ color: VERDICT_META.supported.color }}>
+        {tally.supported} / {tally.total} supported
+      </span>
+      {parts
+        .filter((p) => p.n > 0)
+        .map((p) => (
+          <span key={p.verdict} className="text-[var(--ink-3)]" style={{ color: VERDICT_META[p.verdict].color }}>
+            · {p.n} {p.verdict === "nei" ? "NEI" : p.verdict}
+          </span>
+        ))}
+    </div>
+  );
+}
+
 /* The artifact under examination — the human-authored viral post, set in serif. */
 function SourceNodeCard({ data }: NodeProps<SourceNode>) {
   const { item } = data;
@@ -108,6 +132,7 @@ function SourceNodeCard({ data }: NodeProps<SourceNode>) {
       <p className="font-display px-1 text-[15px] leading-[1.5] text-[var(--ink-1)]">
         {item.text}
       </p>
+      {item.tally && <SupportRatio tally={item.tally} />}
       {OUT}
     </div>
   );
@@ -146,6 +171,20 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
       {!item.checkable && (
         <p className="mt-2 font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)]">
           ⚠ not text-verifiable
+        </p>
+      )}
+      {item.checkworthy === false && (
+        <p className="mt-2 font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)]">
+          ⚠ opinion · not check-worthy
+        </p>
+      )}
+      {item.injected && item.injected.length > 0 && (
+        <p
+          className="mt-2 font-mono text-[9.5px] uppercase tracking-wider"
+          style={{ color: VERDICT_META.conflicting.color }}
+          title="Specifics in the decontextualized claim not found in the source — verify they aren't over-specified."
+        >
+          ⚠ added detail: {item.injected.join(", ")}
         </p>
       )}
       {OUT}

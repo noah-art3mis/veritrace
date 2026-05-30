@@ -1,6 +1,28 @@
 import type { ClaimItem, QuestionItem, EvidenceItem, Verdict } from "../graph-types";
+import type { SearchOptions } from "../exa";
 import type { PipelineDeps } from "./deps";
 import { classifyEvidence } from "./classify";
+import { expandQuery } from "./expand";
+
+// Days of slack around a claim's event date for the retrieval window. The lower bound cuts
+// stale/unrelated older matches; the upper bound keeps the day-of and following-week
+// primary reporting that actually settles a breaking-news claim, while excluding much later
+// re-litigation. Fact-check outlets are excluded by domain regardless of date.
+const WINDOW_BEFORE_DAYS = 30;
+const WINDOW_AFTER_DAYS = 14;
+const MS_PER_DAY = 86_400_000;
+
+/** A centered publication window around a claim's event date, or undefined if no date is known. */
+export function dateWindow(date?: string): SearchOptions | undefined {
+  if (!date) return undefined;
+  const t = Date.parse(date);
+  if (Number.isNaN(t)) return undefined;
+  const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  return {
+    startPublishedDate: iso(t - WINDOW_BEFORE_DAYS * MS_PER_DAY),
+    endPublishedDate: iso(t + WINDOW_AFTER_DAYS * MS_PER_DAY),
+  };
+}
 
 /** Retrieve (de novo) + classify the evidence answering one question. */
 export async function resolveQuestion(
@@ -8,7 +30,8 @@ export async function resolveQuestion(
   question: QuestionItem,
   deps: PipelineDeps,
 ): Promise<EvidenceItem[]> {
-  const raw = await deps.search(question.text);
+  const query = await expandQuery(claim, question, deps.ask);
+  const raw = await deps.search(query, dateWindow(claim.date));
   return classifyEvidence(claim, question, raw, deps.ask);
 }
 
@@ -21,8 +44,17 @@ export function rationaleFor(
   if (!claim.checkable) {
     return "Rests on imagery or media provenance this text-only build cannot verify.";
   }
+  if (claim.checkworthy === false) {
+    return "Subjective or opinion statement — not a checkable factual assertion.";
+  }
   if (verdict === "nei") {
-    return "No usable primary evidence found for this claim.";
+    // Make the insufficiency self-explaining (Kotonya & Toni; CLUE): say WHY, not just NEI.
+    if (evidence.length === 0) {
+      return "No primary sources answered this claim's questions.";
+    }
+    const found = uniqueDomains(evidence);
+    const n = evidence.length;
+    return `Found ${n} source${n === 1 ? "" : "s"} (${found}) but none cleared the reliability and clarity bar.`;
   }
   const deciding = pickDeciding(verdict, evidence);
   const domains = uniqueDomains(deciding);

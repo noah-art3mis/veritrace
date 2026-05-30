@@ -38,7 +38,12 @@ function finishedGraph(): FactGraph {
     evidence("c1-q2-e1", "c1-q2"),
   ];
   return {
-    source: { id: "src", text: "the post", verdict: "supported" },
+    source: {
+      id: "src",
+      text: "the post",
+      verdict: "supported",
+      tally: { supported: 1, refuted: 0, conflicting: 0, nei: 1, total: 2 },
+    },
     claims,
     questions,
     evidence: evidenceItems,

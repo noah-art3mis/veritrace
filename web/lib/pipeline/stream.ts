@@ -4,7 +4,7 @@ import type { PipelineDeps } from "./deps";
 import { extractClaims } from "./extract";
 import { generateQuestions } from "./questions";
 import { resolveQuestion, rationaleFor } from "./resolve";
-import { claimVerdict, sourceVerdict } from "./verdict";
+import { claimVerdict, sourceVerdict, tallyClaims } from "./verdict";
 
 /**
  * Run the VERITRACE pipeline as a stream of events. The rhythm matches the demo
@@ -71,9 +71,9 @@ export async function* streamPipeline(
     }
   }
 
-  // 5. Finale: aggregate to the source-text verdict (in claim order).
-  const verdict = sourceVerdict(claims.map((c) => verdictByClaim.get(c.id) ?? "nei"));
-  yield { type: "source_verdict", verdict };
+  // 5. Finale: aggregate to the source-text verdict (in claim order), with the support tally.
+  const verdicts = claims.map((c) => verdictByClaim.get(c.id) ?? "nei");
+  yield { type: "source_verdict", verdict: sourceVerdict(verdicts), tally: tallyClaims(verdicts) };
   yield { type: "done" };
 }
 
@@ -127,6 +127,7 @@ export async function collectGraph(sourceText: string, deps: PipelineDeps): Prom
       }
       case "source_verdict":
         graph.source.verdict = ev.verdict;
+        graph.source.tally = ev.tally;
         break;
     }
   }

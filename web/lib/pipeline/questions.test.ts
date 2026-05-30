@@ -20,6 +20,12 @@ describe("generateQuestions", () => {
     expect(askJSON).not.toHaveBeenCalled();
   });
 
+  it("returns no questions for a non-checkworthy (opinion) claim and skips the model call", async () => {
+    const out = await generateQuestions(claim({ checkworthy: false }), ask);
+    expect(out).toEqual([]);
+    expect(askJSON).not.toHaveBeenCalled();
+  });
+
   it("namespaces question ids under the claim id", async () => {
     askJSON.mockResolvedValue(["q one?", "q two?"]);
     const out = await generateQuestions(claim({ id: "c2" }), ask);

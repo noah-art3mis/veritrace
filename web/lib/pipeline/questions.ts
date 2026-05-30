@@ -18,8 +18,9 @@ export async function generateQuestions(
   claim: ClaimItem,
   ask: AnthropicCaller,
 ): Promise<QuestionItem[]> {
-  // Unverifiable-by-text claims get no questions — they resolve to NEI by design.
-  if (!claim.checkable) return [];
+  // Unverifiable-by-text claims and non-checkworthy (opinion/subjective) claims get no
+  // questions — both resolve to NEI by design without consuming a search.
+  if (!claim.checkable || claim.checkworthy === false) return [];
 
   const questions = await ask.askJSON<string[]>(
     `Claim: "${claim.text}"\n\nGenerate the resolving questions.`,

@@ -52,6 +52,25 @@ describe("createExaSearch — de-novo retrieval", () => {
     await search()("did X happen?");
     expect(searchMock.mock.calls[0][0]).toBe("did X happen?");
   });
+
+  it("omits date bounds entirely when no window is supplied", async () => {
+    withResults([]);
+    await search()("did X happen?");
+    const opts = searchMock.mock.calls[0][1];
+    expect(opts).not.toHaveProperty("startPublishedDate");
+    expect(opts).not.toHaveProperty("endPublishedDate");
+  });
+
+  it("forwards a supplied date window to Exa (claim-date leakage/staleness guard)", async () => {
+    withResults([]);
+    await search()("did X happen?", {
+      startPublishedDate: "2026-01-23",
+      endPublishedDate: "2026-03-08",
+    });
+    const opts = searchMock.mock.calls[0][1];
+    expect(opts.startPublishedDate).toBe("2026-01-23");
+    expect(opts.endPublishedDate).toBe("2026-03-08");
+  });
 });
 
 describe("createExaSearch — result mapping", () => {

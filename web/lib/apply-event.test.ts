@@ -133,6 +133,12 @@ describe("applyEvent by type", () => {
     expect(g.source.text).toBe("source text");
   });
 
+  it("source_verdict carries the claim tally onto the source (support ratio)", () => {
+    const tally = { supported: 2, refuted: 1, conflicting: 0, nei: 1, total: 4 };
+    const g = applyEvent(baseGraph(), { type: "source_verdict", verdict: "conflicting", tally });
+    expect(g.source.tally).toEqual(tally);
+  });
+
   it("done returns the graph unchanged", () => {
     const g = applyEvent(baseGraph(), { type: "claim", claim: aClaim });
     expect(applyEvent(g, { type: "done" })).toBe(g);

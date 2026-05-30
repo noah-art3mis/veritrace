@@ -29,6 +29,12 @@ export interface RawEvidence {
   passage: string;
 }
 
+/** Optional retrieval bounds. The date window keeps stale and post-event sources out. */
+export interface SearchOptions {
+  startPublishedDate?: string; // ISO; exclude sources published before this
+  endPublishedDate?: string; // ISO; exclude sources published after this
+}
+
 /**
  * Build an Exa search bound to one API key (the user's, or the EXA_API_KEY env fallback).
  * The returned function does one search per Question node. Direct call — not Claude
@@ -39,16 +45,23 @@ export interface RawEvidence {
  */
 export function createExaSearch(
   exaKey?: string,
-): (questionText: string) => Promise<RawEvidence[]> {
+): (query: string, opts?: SearchOptions) => Promise<RawEvidence[]> {
   const apiKey = exaKey || process.env.EXA_API_KEY;
   if (!apiKey) throw new Error("EXA_API_KEY is not set (and no key was provided)");
   const client = new Exa(apiKey);
 
-  return async function retrieveEvidence(questionText: string): Promise<RawEvidence[]> {
-    const { results } = await client.search(questionText, {
+  return async function retrieveEvidence(
+    query: string,
+    opts: SearchOptions = {},
+  ): Promise<RawEvidence[]> {
+    const { results } = await client.search(query, {
       type: "auto",
       numResults: 2,
       excludeDomains: FACT_CHECKERS,
+      // A claim-date window (when known) keeps stale pre-event matches and far-future
+      // re-litigation out, while still admitting the day-of/after primary reporting.
+      ...(opts.startPublishedDate ? { startPublishedDate: opts.startPublishedDate } : {}),
+      ...(opts.endPublishedDate ? { endPublishedDate: opts.endPublishedDate } : {}),
       contents: {
         highlights: true,
         text: { maxCharacters: 800 },

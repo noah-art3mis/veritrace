@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { claimVerdict, sourceVerdict } from "./verdict";
+import { claimVerdict, sourceVerdict, tallyClaims } from "./verdict";
 import type { ClaimItem, EvidenceItem, Stance, Verdict } from "../graph-types";
 
 // Verdict aggregation is the one piece of "judgement" VERITRACE states rather than
@@ -29,6 +29,11 @@ describe("claimVerdict", () => {
   it("returns nei for an unckeckable claim regardless of evidence", () => {
     const c = claim({ checkable: false });
     // Even strong supporting evidence cannot move an unverifiable-by-text claim.
+    expect(claimVerdict(c, [evidence("supports", 0.99)])).toBe("nei");
+  });
+
+  it("returns nei for a non-checkworthy (opinion) claim regardless of evidence", () => {
+    const c = claim({ checkworthy: false });
     expect(claimVerdict(c, [evidence("supports", 0.99)])).toBe("nei");
   });
 
@@ -106,5 +111,21 @@ describe("sourceVerdict", () => {
 
   it("returns conflicting when a lone conflicting claim is the only resolved one", () => {
     expect(sourceVerdict(["nei", "conflicting"])).toBe("conflicting");
+  });
+});
+
+describe("tallyClaims", () => {
+  it("counts each verdict and the total (the support ratio behind 'X of N supported')", () => {
+    expect(tallyClaims(["supported", "supported", "refuted", "nei"])).toEqual({
+      supported: 2,
+      refuted: 1,
+      conflicting: 0,
+      nei: 1,
+      total: 4,
+    });
+  });
+
+  it("returns an all-zero tally for an empty claim set", () => {
+    expect(tallyClaims([])).toEqual({ supported: 0, refuted: 0, conflicting: 0, nei: 0, total: 0 });
   });
 });

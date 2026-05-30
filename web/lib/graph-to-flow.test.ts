@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { graphToFlow } from "./graph-to-flow";
-import type { FactGraph } from "./graph-types";
+import { graphToFlow, conflictEdges } from "./graph-to-flow";
+import type { FactGraph, EvidenceItem } from "./graph-types";
 import { STANCE_META } from "./visuals";
 
 function graph(): FactGraph {
@@ -110,6 +110,62 @@ describe("graphToFlow edges", () => {
     const { edges } = graphToFlow(graph());
     expect(edges.find((e) => e.target === "c1-q1-e1")!.animated).toBe(true);
     expect(edges.find((e) => e.target === "c1")!.animated).toBe(false);
+  });
+});
+
+describe("conflictEdges", () => {
+  // A single claim whose two questions returned opposing DECIDING evidence — the case where
+  // "Conflicting" should mean "these two specific sources disagree" (CLUE).
+  function conflictingClaimGraph(): FactGraph {
+    const ev = (id: string, qid: string, stance: EvidenceItem["stance"], conf: number): EvidenceItem => ({
+      id,
+      questionId: qid,
+      title: "t",
+      url: `https://${id}.com/x`,
+      domain: `${id}.com`,
+      passage: "p",
+      stance,
+      reliability: "high",
+      sourceType: "primary",
+      stanceConfidence: conf,
+    });
+    return {
+      source: { id: "src", text: "post", verdict: "conflicting" },
+      claims: [{ id: "c1", text: "c1", checkable: true, verdict: "conflicting" }],
+      questions: [
+        { id: "c1-q1", claimId: "c1", text: "q?", status: "answered" },
+        { id: "c1-q2", claimId: "c1", text: "q?", status: "answered" },
+      ],
+      evidence: [
+        ev("sup", "c1-q1", "supports", 0.9),
+        ev("ref", "c1-q2", "refutes", 0.95),
+      ],
+    };
+  }
+
+  it("links the opposing deciding sources within a conflicting claim", () => {
+    const [edge] = conflictEdges(conflictingClaimGraph());
+    expect(edge.source).toBe("sup");
+    expect(edge.target).toBe("ref");
+    expect(edge.label).toBe("conflicts");
+  });
+
+  it("emits no conflict edge when a claim has only one-sided deciding evidence", () => {
+    const g = conflictingClaimGraph();
+    g.evidence = g.evidence.filter((e) => e.stance === "supports"); // drop the refutation
+    expect(conflictEdges(g)).toEqual([]);
+  });
+
+  it("ignores low-reliability sources that cannot decide a verdict", () => {
+    const g = conflictingClaimGraph();
+    g.evidence = g.evidence.map((e) => (e.stance === "refutes" ? { ...e, reliability: "low" } : e));
+    // The refutation can no longer decide, so there is no genuine source-level conflict.
+    expect(conflictEdges(g)).toEqual([]);
+  });
+
+  it("is included in graphToFlow's edge set for a conflicting claim", () => {
+    const { edges } = graphToFlow(conflictingClaimGraph());
+    expect(edges.some((e) => e.id === "conflict-c1")).toBe(true);
   });
 });
 

@@ -7,7 +7,8 @@ import type {
   QuestionItem,
   EvidenceItem,
 } from "./graph-types";
-import { STANCE_META } from "./visuals";
+import { STANCE_META, VERDICT_META } from "./visuals";
+import { isDeciding } from "./pipeline/verdict";
 
 // Typed node aliases so each card component knows its data shape.
 export type SourceNode = Node<{ item: SourceTextItem }, "source">;
@@ -72,7 +73,56 @@ export function graphToFlow(graph: FactGraph): { nodes: AppNode[]; edges: Edge[]
     });
   }
 
-  return { nodes: layout(nodes, edges), edges };
+  // Conflict overlay (CLUE): when one claim has both deciding support AND deciding
+  // refutation, link the two strongest opposing sources so "Conflicting" means *these two
+  // sources disagree*, not a flat label. Layout ranks on the structural edges only —
+  // these same-rank evidence↔evidence links would otherwise distort the dagre layering.
+  const laidOut = layout(nodes, edges);
+  return { nodes: laidOut, edges: [...edges, ...conflictEdges(graph)] };
+}
+
+/** Edges between the strongest opposing deciding sources within each conflicting claim. */
+export function conflictEdges(graph: FactGraph): Edge[] {
+  const claimOfQuestion = new Map(graph.questions.map((q) => [q.id, q.claimId]));
+  const byClaim = new Map<string, { supports: EvidenceItem[]; refutes: EvidenceItem[] }>();
+
+  for (const ev of graph.evidence) {
+    if (!isDeciding(ev)) continue;
+    if (ev.stance !== "supports" && ev.stance !== "refutes") continue;
+    const claimId = claimOfQuestion.get(ev.questionId);
+    if (!claimId) continue;
+    const bucket = byClaim.get(claimId) ?? { supports: [], refutes: [] };
+    bucket[ev.stance].push(ev);
+    byClaim.set(claimId, bucket);
+  }
+
+  const strongest = (items: EvidenceItem[]) =>
+    items.reduce((best, e) => ((e.stanceConfidence ?? 0) > (best.stanceConfidence ?? 0) ? e : best));
+  const color = VERDICT_META.conflicting.color;
+  const edges: Edge[] = [];
+
+  for (const [claimId, { supports, refutes }] of byClaim) {
+    if (supports.length === 0 || refutes.length === 0) continue;
+    const a = strongest(supports);
+    const b = strongest(refutes);
+    edges.push({
+      id: `conflict-${claimId}`,
+      source: a.id,
+      target: b.id,
+      type: "smoothstep",
+      animated: true,
+      label: "conflicts",
+      style: { stroke: color, strokeWidth: 1.5, strokeDasharray: "2 4" },
+      labelStyle: { fill: color, fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" },
+      labelBgStyle: { fill: "#0b0e15", fillOpacity: 0.9 },
+      labelBgPadding: [4, 2],
+      labelBgBorderRadius: 3,
+      markerEnd: undefined,
+      markerStart: undefined,
+    });
+  }
+
+  return edges;
 }
 
 function layout(nodes: AppNode[], edges: Edge[]): AppNode[] {
