@@ -52,6 +52,10 @@ _Avoid_: user, reader, consumer
 A post-run summary panel that auto-opens (left slide-in) when a run resolves: the Source-text Verdict, the support ratio, and an AI-generated narrative summary of the run. An **advisory legibility aid** — it lets the Fact-checker get the gist without panning/zooming the Evidence graph. Explicitly secondary to the graph (which remains _the_ explanation), and it summarizes only what the graph already contains.
 _Avoid_: report, verdict (the brief restates the graph's Verdict, it does not author one), explanation (the graph is the explanation)
 
+**Constellation view**:
+An **additive, radial overview rendering** of the Evidence graph — every node a colour-coded circle, detail hidden until the Fact-checker interacts — for reading the *shape* of a large investigation at a glance. A second rendering of the same four layers, **not** a new graph. Secondary to the default card rendering, which remains *the* explanation: a circle is a way *into* a node (click opens its card), never a replacement for it. Earns its place only when the card graph gets too big to read.
+_Avoid_: replacing the Evidence graph; "the graph" (overloaded — that's the card rendering); network/force graph (the layers are preserved, not dissolved into a blob)
+
 ## Relationships
 
 The graph is 4 layers: **Source text → Claims → Questions → Evidence**.
