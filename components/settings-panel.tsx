@@ -300,7 +300,9 @@ export function SettingsPanel({
         >
           <span
             className="h-2.5 w-2.5 rounded-full transition-colors"
-            style={{ background: settings.factCheckShortCircuit ? "var(--accent)" : "var(--line-2)" }}
+            style={{
+              background: settings.factCheckShortCircuit ? "var(--accent)" : "var(--line-2)",
+            }}
           />
           {settings.factCheckShortCircuit ? "On" : "Off"}
         </button>

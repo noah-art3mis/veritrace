@@ -41,11 +41,11 @@ export async function* streamPipeline(
   if (deps.factCheck) {
     const candidates = claims.filter(isSearchable);
     const lookups = await Promise.all(
-      candidates.map((c) =>
-        deps
-          .factCheck!(c.text)
-          .then((hits) => ({ c, hits }))
-          .catch(() => ({ c, hits: [] })), // a lookup failure ⇒ fall through to de novo
+      candidates.map(
+        (c) =>
+          deps.factCheck!(c.text)
+            .then((hits) => ({ c, hits }))
+            .catch(() => ({ c, hits: [] })), // a lookup failure ⇒ fall through to de novo
       ),
     );
     for (const { c, hits } of lookups) {
@@ -66,7 +66,12 @@ export async function* streamPipeline(
       };
       yield { type: "question", question };
       for (const e of evidence) yield { type: "evidence", evidence: e };
-      yield { type: "claim_verdict", id: c.id, verdict, rationale: factCheckRationale(verdict, hits) };
+      yield {
+        type: "claim_verdict",
+        id: c.id,
+        verdict,
+        rationale: factCheckRationale(verdict, hits),
+      };
     }
   }
 

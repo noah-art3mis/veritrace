@@ -171,7 +171,17 @@ describe("streamPipeline fact-check short-circuit", () => {
 
   it("resolves a claim from an existing fact-check and skips question generation + retrieval", async () => {
     const factCheck = vi.fn().mockResolvedValue([
-      { claimText: "x", publisher: "Snopes", site: "snopes.com", url: "https://snopes.com/x", title: "t", reviewDate: "2024-01-01", textualRating: "False", stance: "refutes", trusted: true },
+      {
+        claimText: "x",
+        publisher: "Snopes",
+        site: "snopes.com",
+        url: "https://snopes.com/x",
+        title: "t",
+        reviewDate: "2024-01-01",
+        textualRating: "False",
+        stance: "refutes",
+        trusted: true,
+      },
     ]);
     const events = await drainWith(fcDeps(factCheck));
 
@@ -200,12 +210,24 @@ describe("streamPipeline fact-check short-circuit", () => {
 
   it("falls through when the fact-check rating is only contextualizing (non-deciding)", async () => {
     const factCheck = vi.fn().mockResolvedValue([
-      { claimText: "x", publisher: "Snopes", site: "snopes.com", url: "https://snopes.com/x", title: "t", textualRating: "Mixture", stance: "contextualizes", trusted: true },
+      {
+        claimText: "x",
+        publisher: "Snopes",
+        site: "snopes.com",
+        url: "https://snopes.com/x",
+        title: "t",
+        textualRating: "Mixture",
+        stance: "contextualizes",
+        trusted: true,
+      },
     ]);
     const events = await drainWith(fcDeps(factCheck));
 
     expect(resolveQuestion).toHaveBeenCalled(); // not short-circuited
-    expect(events.find((e) => e.type === "claim_verdict")).toMatchObject({ id: "c1", verdict: "supported" });
+    expect(events.find((e) => e.type === "claim_verdict")).toMatchObject({
+      id: "c1",
+      verdict: "supported",
+    });
   });
 
   it("falls through when the lookup throws (a fact-check hiccup never sinks the run)", async () => {
@@ -213,7 +235,10 @@ describe("streamPipeline fact-check short-circuit", () => {
     const events = await drainWith(fcDeps(factCheck));
 
     expect(resolveQuestion).toHaveBeenCalled();
-    expect(events.find((e) => e.type === "claim_verdict")).toMatchObject({ id: "c1", verdict: "supported" });
+    expect(events.find((e) => e.type === "claim_verdict")).toMatchObject({
+      id: "c1",
+      verdict: "supported",
+    });
   });
 });
 

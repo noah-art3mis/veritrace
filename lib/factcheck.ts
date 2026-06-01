@@ -56,12 +56,35 @@ export interface FactCheckConfig {
 // emit. Order matters: refuting labels are checked first because "not true" / "no" must
 // not be swallowed by a naive "true" match.
 const REFUTING = [
-  "false", "pants on fire", "incorrect", "inaccurate", "fake", "no evidence",
-  "misleading", "unsupported", "distorts", "debunked", "hoax", "not true",
-  "falso", "enganoso", "engañoso", "incorreto", "incorrecto", "mentira",
+  "false",
+  "pants on fire",
+  "incorrect",
+  "inaccurate",
+  "fake",
+  "no evidence",
+  "misleading",
+  "unsupported",
+  "distorts",
+  "debunked",
+  "hoax",
+  "not true",
+  "falso",
+  "enganoso",
+  "engañoso",
+  "incorreto",
+  "incorrecto",
+  "mentira",
 ];
 const SUPPORTING = [
-  "true", "correct", "accurate", "verified", "legit", "verdadero", "verdadeiro", "cierto", "certo",
+  "true",
+  "correct",
+  "accurate",
+  "verified",
+  "legit",
+  "verdadero",
+  "verdadeiro",
+  "cierto",
+  "certo",
 ];
 
 /** Map a publisher's free-text rating to our stance. Ambiguous/mixed ⇒ "contextualizes". */
@@ -193,6 +216,7 @@ export function factCheckRationale(verdict: Verdict, hits: FactCheckHit[]): stri
       : publishers.length <= 2
         ? publishers.join(" and ")
         : `${publishers.slice(0, 2).join(", ")} and others`;
-  const lead = verdict === "refuted" ? "Refuted" : verdict === "supported" ? "Supported" : "Resolved";
+  const lead =
+    verdict === "refuted" ? "Refuted" : verdict === "supported" ? "Supported" : "Resolved";
   return `${lead} from an existing fact-check by ${who} — de-novo retrieval skipped (short-circuit).`;
 }

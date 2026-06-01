@@ -67,7 +67,10 @@ describe("factCheckEvidence", () => {
   });
 
   it("keeps an ambiguous (contextualizing) rating below the deciding confidence bar", () => {
-    const ev = factCheckEvidence([hit({ stance: "contextualizes", textualRating: "Mixture" })], "c1-fc");
+    const ev = factCheckEvidence(
+      [hit({ stance: "contextualizes", textualRating: "Mixture" })],
+      "c1-fc",
+    );
     expect(ev[0].stanceConfidence).toBeLessThan(0.5);
   });
 });
@@ -134,7 +137,9 @@ describe("createFactCheckLookup", () => {
   });
 
   it("throws on a non-ok response (caller treats it as no fact-check)", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 429 }) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 429 }) as unknown as typeof fetch;
     const lookup = createFactCheckLookup({ apiKey: "k" });
     await expect(lookup("q")).rejects.toThrow(/429/);
   });
