@@ -20,8 +20,9 @@ import {
 } from "./graph-nodes";
 import { circleNodeTypes, NodeDetail } from "./graph-circles";
 import { radialEdgeTypes } from "./radial-edges";
-import { useGraphFlow } from "./use-graph-flow";
-import { useRadialFlow } from "./use-radial-flow";
+import { useGraphAnchors } from "./use-graph-flow";
+import { useRadialAnchors } from "./use-radial-flow";
+import { useForceLayout } from "./use-force-layout";
 import { useIsMobile } from "./use-is-mobile";
 import { GraphLegend } from "./graph-legend";
 import type { AppNode } from "@/lib/graph-to-flow";
@@ -42,6 +43,21 @@ const MINIMAP_MAX_NODES = 220;
 const RADIAL_SUGGEST_NODES = 60;
 
 type ViewMode = "cards" | "radial";
+
+// OS "reduce motion" preference, SSR-safe. Server snapshot is `true` (assume reduced) so we never
+// schedule a requestAnimationFrame loop during render on the server; the client re-reads on mount.
+function useReducedMotion(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      if (typeof window === "undefined" || !window.matchMedia) return () => {};
+      const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
+      mql.addEventListener("change", cb);
+      return () => mql.removeEventListener("change", cb);
+    },
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    () => true,
+  );
+}
 
 // Keep the whole graph in frame as nodes stream in (and when the view mode changes). Trailing-
 // debounced: a burst of evidence landing together triggers ONE fitView after it settles.
@@ -74,10 +90,23 @@ export default function FactGraphCanvas({
   const [pinnedId, setPinnedId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const card = useGraphFlow(graph);
-  const radial = useRadialFlow(graph);
   const isRadial = view === "radial";
-  const { nodes, edges } = isRadial ? radial : card;
+  // Respect the OS reduced-motion setting: when set, fall back to static placement (no sim, no rAF).
+  // SSR snapshot is `true` (assume reduced) so the server never schedules animation frames.
+  const reducedMotion = useReducedMotion();
+  const motion = !reducedMotion;
+
+  // Both anchor hooks run unconditionally (hooks rule); the force layer drives whichever view is
+  // active. dagre/radial still only recompute on topology change inside the anchor hooks.
+  const cardFlow = useGraphAnchors(graph);
+  const radialFlow = useRadialAnchors(graph);
+  const flow = isRadial ? radialFlow : cardFlow;
+  const { nodes, onNodesChange, settleNonce } = useForceLayout(
+    flow,
+    isRadial ? "radial" : "cards",
+    motion,
+  );
+  const edges = flow.edges;
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n as AppNode])), [nodes]);
   const peekNode = isRadial ? byId.get(hoveredId ?? pinnedId ?? "") : undefined;
@@ -104,6 +133,7 @@ export default function FactGraphCanvas({
         <ReincludeContext.Provider value={onReinclude ?? null}>
           <ReactFlow
             nodes={nodes}
+            onNodesChange={onNodesChange}
             edges={edges}
             nodeTypes={isRadial ? circleNodeTypes : nodeTypes}
             edgeTypes={isRadial ? radialEdgeTypes : undefined}
@@ -114,7 +144,9 @@ export default function FactGraphCanvas({
             onlyRenderVisibleElements
             nodesDraggable={!isRadial}
             proOptions={{ hideAttribution: true }}
-            className="bg-transparent"
+            // vt-sim-active turns off the per-node CSS transform transition while physics owns
+            // motion — the simulation writes positions every frame, so a CSS tween would fight it.
+            className={`bg-transparent${motion ? " vt-sim-active" : ""}`}
             onNodeMouseEnter={(_, n) => isRadial && setHoveredId(n.id)}
             onNodeMouseLeave={() => isRadial && setHoveredId(null)}
             onNodeClick={(_, n) => {
@@ -129,7 +161,10 @@ export default function FactGraphCanvas({
               setHoveredId(null);
             }}
           >
-            <FitOnChange dep={`${view}:${nodes.length}`} />
+            {/* Frame after the sim SETTLES (settleNonce), not on every node-count change mid-stream,
+              so a burst of evidence triggers one fitView once it comes to rest. Reduced motion has no
+              sim, so fall back to the node count. */}
+            <FitOnChange dep={motion ? `${view}:${settleNonce}` : `${view}:${nodes.length}`} />
             <Background variant={BackgroundVariant.Cross} gap={36} size={4} color="#18202c" />
             {/* The +/- zoom controls are desktop affordances; on touch you pinch-zoom, so they just
               add clutter on the scarce mobile first screen (#27). Hidden there, like the minimap. */}

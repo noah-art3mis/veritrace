@@ -77,7 +77,7 @@ function Circle({
   pulse?: boolean;
 }) {
   return (
-    <div className="relative" style={{ width: diameter, height: diameter }}>
+    <div className="vt-pop-circle relative" style={{ width: diameter, height: diameter }}>
       <div
         className={`flex items-center justify-center rounded-full ${pulse ? "vt-pulse" : ""}`}
         style={{
