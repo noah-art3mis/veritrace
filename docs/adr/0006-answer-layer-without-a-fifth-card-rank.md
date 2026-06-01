@@ -14,6 +14,8 @@ Make the Answer an explicit **concept** without adding a fifth **card rank**, so
 - **Card view: a grouping inside the Question node, not a new rank.** The Question node renders its evidence under collapsed-by-default answer headers ("Yes — 3 sources", "No — 1 source"). This surfaces the fork without a fifth column and without re-introducing the legibility wall.
 - **Radial view: the natural home.** In the Constellation view (ADR 0003) the answer buckets render as a sub-grouping of the evidence rim around each Question — five concentric rings are legible where five stacked card-layers are not, exactly as #2 anticipated. This is where the explicit QA-pair earns its place.
 - **Verdict relation:** the winning answer bucket ≈ the Claim's existing stance-aggregated verdict — no change to `verdict.ts`. The Answer layer is a _view_ of the same aggregation, not a new source of truth.
+- **The derivation is visible, not abstracted.** Because an Answer bucket is _derived_ (stance-grouped), the grouping must show its work — which evidence fell into "yes" vs "no", and why. The Answer layer is an aid to legibility, never a black box laid over the evidence. This is the project-wide **transparency principle**: every pipeline decision is visible to the Fact-checker; a _simplified_ view is welcome as an option, but hiding the decision is not.
+- **Fact-check waypoints render distinctly.** Following the waypoint-only de-novo policy (CONTEXT.md), a retrieved fact-check is shown as a **high-trust waypoint** that links to the primary sources it cites — visibly flagged as a trustworthy navigation aid — never as the answer itself. Its conclusion never fills an Answer bucket or moves a Verdict; only the primaries it leads to do.
 
 ## Considered options
 
