@@ -5,9 +5,18 @@ import { DEFAULT_CHARS } from "@/lib/run-config";
 const { streamPipeline } = vi.hoisted(() => ({ streamPipeline: vi.fn() }));
 const { createReasoner } = vi.hoisted(() => ({ createReasoner: vi.fn() }));
 const { createExaSearch } = vi.hoisted(() => ({ createExaSearch: vi.fn() }));
+// The route is guarded by a module-level rate limiter shared across requests; mock it so the
+// suite doesn't drain a real bucket (and so we can drive the reject path explicitly).
+const { apiRateLimiter, clientIp } = vi.hoisted(() => ({
+  apiRateLimiter: {
+    check: vi.fn((): { ok: boolean; retryAfterMs?: number } => ({ ok: true })),
+  },
+  clientIp: vi.fn(() => "test-ip"),
+}));
 vi.mock("@/lib/pipeline/stream", () => ({ streamPipeline }));
 vi.mock("@/lib/reasoner", () => ({ createReasoner }));
 vi.mock("@/lib/exa", () => ({ createExaSearch }));
+vi.mock("@/lib/rate-limit", () => ({ apiRateLimiter, clientIp }));
 
 import { POST } from "./route";
 
@@ -39,6 +48,33 @@ beforeEach(() => {
     askWithTools: vi.fn(),
   });
   createExaSearch.mockReset().mockReturnValue(vi.fn());
+  apiRateLimiter.check.mockReset().mockReturnValue({ ok: true });
+});
+
+describe("POST /api/check rate limiting", () => {
+  it("returns 429 with Retry-After when the limiter rejects, before any work", async () => {
+    apiRateLimiter.check.mockReturnValue({ ok: false, retryAfterMs: 5000 });
+    const res = await POST(post(JSON.stringify({ text: "hi" })));
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("5");
+    expect((await res.json()).error).toMatch(/too many requests/i);
+    expect(streamPipeline).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/check error mapping", () => {
+  it("maps a provider 429 in the stream to readable rate-limit guidance", async () => {
+    streamPipeline.mockImplementation(async function* () {
+      yield { type: "source", source: { id: "src", text: "hi", verdict: null } };
+      throw Object.assign(new Error("429 status code (no body)"), { status: 429 });
+    });
+    const res = await POST(post(JSON.stringify({ text: "hi" })));
+    const events = await ndjson(res);
+    const last = events[events.length - 1] as { type: string; message: string };
+    expect(last.type).toBe("error");
+    expect(last.message).toMatch(/rate-?limit/i);
+    expect(last.message).not.toMatch(/no body/i);
+  });
 });
 
 describe("POST /api/check validation", () => {
