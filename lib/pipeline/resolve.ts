@@ -39,6 +39,10 @@ const MIN_DECIDING = 2;
 // per-question analogue of the run-config legibility caps (claims / questions / sources).
 const EVIDENCE_PER_QUESTION_CAP = 6;
 
+// When the opt-in embedding re-rank (#57) is on, keep this many top candidates by cosine before
+// classify — a pool wider than the final cap so the stated classify/quality rank still decides.
+const RERANK_POOL = 10;
+
 const GATHER_SYSTEM = `You are the evidence-gathering stage of VERITRACE, resolving ONE question about ONE claim de novo by searching the open web with the search_evidence tool.
 
 How to search:
@@ -133,7 +137,10 @@ export async function resolveQuestion(
   );
 
   // Drop circular re-reporting that just restates the claim before paying to classify it.
-  const gathered = dropClaimEchoes(claim.text, [...collected.values()]);
+  let gathered = dropClaimEchoes(claim.text, [...collected.values()]);
+  // Opt-in embedding re-rank (#57, ADR 0010): when a reranker is wired, keep the candidates most
+  // similar to the directional hypotheticals before classify. Absent ⇒ no embeddings (the default).
+  if (deps.rerank) gathered = await deps.rerank.rerank(anchors, gathered, RERANK_POOL);
   const classified = await classifyEvidence(claim, question, gathered, deps.ask);
   const evidence = rankAndCapEvidence(classified, EVIDENCE_PER_QUESTION_CAP);
   const trace: QuestionTrace = {

@@ -17,8 +17,16 @@ export default function Home() {
             Veri<span style={{ color: "var(--accent)" }}>trace</span>
           </h1>
           <span className="font-display mb-[3px] hidden text-[13.5px] italic leading-none text-[var(--ink-2)] md:inline">
-            observable AI fact checker
+            observable AI fact-checker
           </span>
+          <a
+            href="https://simulacro.tech"
+            target="_blank"
+            rel="noreferrer"
+            className="mb-[3px] hidden font-mono text-[10px] uppercase tracking-[0.16em] leading-none text-[var(--ink-2)] transition-colors hover:text-[var(--accent)] md:inline"
+          >
+            by simulacro.tech
+          </a>
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden items-center gap-2 rounded-full border border-[var(--line-2)] bg-[var(--panel)] px-3 py-1.5 lg:flex">
@@ -31,25 +39,6 @@ export default function Home() {
               <span style={{ color: "var(--accent)" }}>2.</span> Press Run check
             </span>
           </div>
-          <a
-            href="https://veritrace-chi.vercel.app/"
-            className="hidden items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] transition-colors md:flex"
-            style={{
-              borderColor: "rgba(58,214,230,0.4)",
-              background: "rgba(58,214,230,0.08)",
-              color: "var(--accent)",
-            }}
-          >
-            veritrace-chi.vercel.app
-          </a>
-          <a
-            href="https://simulacro.tech"
-            target="_blank"
-            rel="noreferrer"
-            className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:text-[var(--accent)]"
-          >
-            by simulacro.tech
-          </a>
           <Link
             href="/methodology"
             className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:text-[var(--accent)]"

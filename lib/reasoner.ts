@@ -1,4 +1,10 @@
-import { modelInfo, OPENAI_BASE_URL, GEMINI_BASE_URL, type RunConfig } from "./run-config";
+import {
+  modelInfo,
+  OPENAI_BASE_URL,
+  GEMINI_BASE_URL,
+  DEEPSEEK_BASE_URL,
+  type RunConfig,
+} from "./run-config";
 import { createAnthropic, type ReasoningProvider } from "./anthropic";
 import { createOpenAICompatible } from "./openai-compatible";
 import { createSemaphore } from "./semaphore";
@@ -24,24 +30,29 @@ export function createReasoner(config: RunConfig): ReasoningProvider {
       ? createAnthropic(config)
       : createOpenAICompatible(config, {
           baseURL: process.env.OPENAI_COMPAT_BASE_URL || info.baseUrl || GEMINI_BASE_URL,
-          apiKey: resolveKey(info.baseUrl),
+          apiKey: openAICompatKey(info.baseUrl),
           model: config.model,
         });
   return throttleProvider(provider, llmLimiter);
 }
 
-// The env key for an OpenAI-compatible backend, chosen by its endpoint. OPENAI_COMPAT_API_KEY is
-// a universal override for custom backends (Groq / OpenRouter / a local server).
-function resolveKey(baseUrl?: string): string {
-  const override = process.env.OPENAI_COMPAT_API_KEY;
-  if (override) return override;
-  if (baseUrl === OPENAI_BASE_URL) {
-    const key = process.env.OPENAI_API_KEY;
-    if (!key)
-      throw new Error("OPENAI_API_KEY is not set (required for the selected OpenAI model).");
-    return key;
-  }
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error("GEMINI_API_KEY is not set (required for the selected Gemini model).");
+// The env key for an OpenAI-compatible backend, chosen by its endpoint. Pure (takes the env in) so
+// the routing is unit-testable without mutating process.env. OPENAI_COMPAT_API_KEY is a universal
+// override for custom backends (Groq / OpenRouter / a local server). A new backend must add its
+// branch here, or its base URL falls through to the Gemini branch and silently grabs the wrong key.
+export function openAICompatKey(
+  baseUrl: string | undefined,
+  env: Record<string, string | undefined> = process.env,
+): string {
+  if (env.OPENAI_COMPAT_API_KEY) return env.OPENAI_COMPAT_API_KEY;
+  const route =
+    baseUrl === OPENAI_BASE_URL
+      ? { envVar: "OPENAI_API_KEY", name: "OpenAI" }
+      : baseUrl === DEEPSEEK_BASE_URL
+        ? { envVar: "DEEPSEEK_API_KEY", name: "DeepSeek" }
+        : { envVar: "GEMINI_API_KEY", name: "Gemini" };
+  const key = env[route.envVar];
+  if (!key)
+    throw new Error(`${route.envVar} is not set (required for the selected ${route.name} model).`);
   return key;
 }

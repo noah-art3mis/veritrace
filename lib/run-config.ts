@@ -8,6 +8,7 @@
 // separate provider switch.
 export const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
 export const OPENAI_BASE_URL = "https://api.openai.com/v1";
+export const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
 export type Provider = "anthropic" | "openai-compatible";
 
@@ -36,6 +37,8 @@ export const MODELS = {
   "gpt-5.4-nano": { label: "GPT-5.4 nano", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.2, outputCost: 1.25, noTemperature: true }, // prettier-ignore
   "gemini-2.5-flash": { label: "Gemini 2.5 Flash", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.3, outputCost: 2.5 }, // prettier-ignore
   "gemini-2.5-flash-lite": { label: "Gemini 2.5 Flash-Lite", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.1, outputCost: 0.4 }, // prettier-ignore
+  "deepseek-v4-flash": { label: "DeepSeek V4 Flash", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.14, outputCost: 0.28 }, // prettier-ignore
+  "deepseek-v4-pro": { label: "DeepSeek V4 Pro", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.435, outputCost: 0.87 }, // prettier-ignore
 } as const satisfies Record<string, ModelInfo>;
 
 export type ModelId = keyof typeof MODELS;
@@ -119,12 +122,21 @@ export interface RunConfig {
    * you test the full pipeline without short-circuiting.
    */
   factCheckShortCircuit: boolean;
+  /**
+   * Opt-in embedding re-rank of gathered candidates (#57, ADR 0010): when on AND a Cohere key
+   * resolves, the gather stage embeds the candidates + the directional hypotheticals and keeps the
+   * top-N by cosine before classify. Default FALSE — VERITRACE keeps no embeddings in the de-novo
+   * path (ADR 0005); this is the heavier alternative to RRF (#56). Off / no key ⇒ no re-rank.
+   */
+  rerank: boolean;
   /** User-supplied key; blank ⇒ the server falls back to its ANTHROPIC_API_KEY env. */
   anthropicKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its EXA_API_KEY env. */
   exaKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its GOOGLE_FACT_CHECK_API_KEY env. */
   googleFactCheckKey?: string;
+  /** User-supplied Cohere key for the opt-in re-rank; blank ⇒ the server's COHERE_API_KEY env. */
+  cohereKey?: string;
 }
 
 // Default to temperature 0 — deterministic output is the whole point of a
@@ -141,6 +153,7 @@ export const DEFAULT_CONFIG: RunConfig = {
   category: "",
   preferFresh: false,
   factCheckShortCircuit: false,
+  rerank: false,
 };
 
 function isModelId(value: unknown): value is ModelId {
@@ -239,8 +252,10 @@ export function parseConfig(input: unknown): RunConfig {
     category,
     preferFresh: Boolean(raw.preferFresh),
     factCheckShortCircuit: Boolean(raw.factCheckShortCircuit),
+    rerank: Boolean(raw.rerank),
     anthropicKey: cleanKey(raw.anthropicKey),
     exaKey: cleanKey(raw.exaKey),
     googleFactCheckKey: cleanKey(raw.googleFactCheckKey),
+    cohereKey: cleanKey(raw.cohereKey),
   };
 }
