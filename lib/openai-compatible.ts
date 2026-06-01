@@ -1,33 +1,32 @@
 import OpenAI from "openai";
-import type { RunConfig } from "./run-config";
+import { supportsTemperature, type RunConfig } from "./run-config";
 import { askJSONWithRepair, type JSONOpts } from "./ask-json";
 import type { AskOpts, ReasoningProvider, ToolLoopOpts, ToolLoopResult } from "./anthropic";
 
 // OpenAI-compatible reasoning provider (ADR 0004). One adapter for every backend that speaks the
-// OpenAI /chat/completions format — Gemini (via its OpenAI-compatibility endpoint), Groq,
-// OpenRouter, Together, DeepSeek, or a local server. Selected by env (see createReasoner); the
-// defaults target Google Gemini. This is how a run proceeds without Anthropic credits.
+// OpenAI /chat/completions format — Gemini, OpenAI, Groq, OpenRouter, Together, DeepSeek, or a
+// local server. The base URL, model, and key are resolved by createReasoner from the selected
+// model's registry entry and passed in here, so this stays a pure adapter (no env reading).
 //
 // It returns the SAME `ReasoningProvider` interface as createAnthropic — askText / askJSON /
 // askWithTools — so the pipeline (`deps.ask`) is unchanged. The agentic gather loop is translated
 // into OpenAI tool-calling, so the backend/model MUST support function calling.
 
-const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
-// Cheapest Gemini tier; supports function calling (needed for the gather loop). Override with
-// OPENAI_COMPAT_MODEL for a stronger model or a non-Gemini backend.
-const DEFAULT_MODEL = "gemini-2.5-flash-lite";
+/** Where to send requests: resolved by createReasoner from the model registry + env keys. */
+export interface OpenAICompatTarget {
+  baseURL: string;
+  apiKey: string;
+  model: string;
+}
 
-export function createOpenAICompatible(config: RunConfig): ReasoningProvider {
-  const apiKey =
-    process.env.OPENAI_COMPAT_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      "No key set for the OpenAI-compatible LLM provider (set GEMINI_API_KEY, OPENAI_COMPAT_API_KEY, or OPENAI_API_KEY)",
-    );
-  }
-  const baseURL = process.env.OPENAI_COMPAT_BASE_URL || GEMINI_BASE_URL;
-  const model = process.env.OPENAI_COMPAT_MODEL || DEFAULT_MODEL;
-  const client = new OpenAI({ apiKey, baseURL });
+export function createOpenAICompatible(
+  config: RunConfig,
+  target: OpenAICompatTarget,
+): ReasoningProvider {
+  const client = new OpenAI({ apiKey: target.apiKey, baseURL: target.baseURL });
+  const model = target.model;
+  // Reasoning models (gpt-5.x) reject a custom temperature; omit it for those. Gemini accepts it.
+  const temperature = supportsTemperature(config.model) ? config.temperature : undefined;
 
   function buildMessages(
     prompt: string,
@@ -44,7 +43,7 @@ export function createOpenAICompatible(config: RunConfig): ReasoningProvider {
       model,
       messages: buildMessages(prompt, opts.system),
       max_tokens: opts.maxTokens ?? 1024,
-      temperature: config.temperature,
+      ...(temperature !== undefined ? { temperature } : {}),
     });
     return resp.choices[0]?.message?.content ?? "";
   }
@@ -76,7 +75,7 @@ export function createOpenAICompatible(config: RunConfig): ReasoningProvider {
         messages,
         tools,
         max_tokens: opts.maxTokens ?? 1024,
-        temperature: config.temperature,
+        ...(temperature !== undefined ? { temperature } : {}),
       });
       const msg = resp.choices[0]?.message;
       if (!msg) break;
