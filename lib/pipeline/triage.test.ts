@@ -90,6 +90,27 @@ describe("triageUtterances", () => {
     expect(claims[1].relevant).toBe(true);
   });
 
+  it("demotes a low-but-nonzero background premise below the floor, even under the cap (#52)", async () => {
+    // The Imran-Khan miss: a true-but-irrelevant background premise ("X criticized Y") scored as
+    // mildly relevant rode alongside the contested numbers and flipped the document to conflicting.
+    // A barely-relevant premise must be dropped even when there's room under maxClaims.
+    askJSON.mockResolvedValue([
+      { text: "Imran Khan criticized Macron.", checkable: true, checkworthy: true, relevance: 0.2 },
+      { text: "183 visas were cancelled.", checkable: true, checkworthy: true, relevance: 0.9 },
+    ]);
+    const claims = await triageUtterances("src", [u("a"), u("b")], ask, 5);
+    expect(claims[0].relevant).toBe(false); // background premise dropped by the floor
+    expect(claims[1].relevant).toBe(true); // contested numeric claim kept
+  });
+
+  it("keeps a mid-range secondary-but-real claim above the floor", async () => {
+    askJSON.mockResolvedValue([
+      { text: "a real secondary claim", checkable: true, checkworthy: true, relevance: 0.4 },
+    ]);
+    const [c] = await triageUtterances("src", [u("a")], ask, 5);
+    expect(c.relevant).toBe(true);
+  });
+
   it("carries the relevance score onto the claim for display", async () => {
     askJSON.mockResolvedValue([{ text: "x", checkable: true, checkworthy: true, relevance: 0.6 }]);
     const [c] = await triageUtterances("src", [u("a")], ask, 5);
