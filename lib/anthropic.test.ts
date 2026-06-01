@@ -18,7 +18,18 @@ vi.mock("@anthropic-ai/sdk", () => {
 
 import { createAnthropic } from "./anthropic";
 
-const baseConfig: RunConfig = { model: "claude-sonnet-4-6", temperature: 0, thinking: false, maxClaims: 5, maxQuestions: 2, maxSources: 2, maxChars: 6000, deepSearch: false, category: "", preferFresh: false };
+const baseConfig: RunConfig = {
+  model: "claude-sonnet-4-6",
+  temperature: 0,
+  thinking: false,
+  maxClaims: 5,
+  maxQuestions: 2,
+  maxSources: 2,
+  maxChars: 6000,
+  deepSearch: false,
+  category: "",
+  preferFresh: false,
+};
 
 beforeEach(() => {
   createMock.mockReset();
@@ -97,7 +108,9 @@ describe("createAnthropic — request body", () => {
 
   it("omits temperature for models that deprecated it (e.g. Opus 4.8)", async () => {
     reply({ type: "text", text: "ok" });
-    await createAnthropic({ ...baseConfig, model: "claude-opus-4-8", temperature: 0.4 }).askText("p");
+    await createAnthropic({ ...baseConfig, model: "claude-opus-4-8", temperature: 0.4 }).askText(
+      "p",
+    );
     expect(lastRequest().temperature).toBeUndefined();
   });
 });
@@ -194,7 +207,9 @@ describe("createAnthropic — askWithTools loop", () => {
 
     expect(onTool).toHaveBeenCalledWith("search_evidence", { query: "did X happen?" });
     expect(result.text).toBe("found enough");
-    expect(result.toolCalls).toEqual([{ name: "search_evidence", input: { query: "did X happen?" } }]);
+    expect(result.toolCalls).toEqual([
+      { name: "search_evidence", input: { query: "did X happen?" } },
+    ]);
 
     // The second request must carry the assistant tool_use turn + a tool_result user turn.
     const secondMessages = createMock.mock.calls[1][0].messages;

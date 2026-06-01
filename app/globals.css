@@ -47,8 +47,7 @@ body {
 body {
   background:
     radial-gradient(1200px 800px at 78% -10%, rgba(58, 214, 230, 0.06), transparent 55%),
-    radial-gradient(900px 700px at 8% 110%, rgba(245, 185, 74, 0.04), transparent 50%),
-    var(--bg);
+    radial-gradient(900px 700px at 8% 110%, rgba(245, 185, 74, 0.04), transparent 50%), var(--bg);
   color: var(--ink-1);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;

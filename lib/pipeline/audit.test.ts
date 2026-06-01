@@ -23,7 +23,10 @@ describe("auditDecontextualization", () => {
 
   it("returns an empty array when nothing was injected (fully grounded claim)", () => {
     expect(
-      auditDecontextualization("CJNG seized the airport in Jalisco.", "CJNG seized the airport in Jalisco."),
+      auditDecontextualization(
+        "CJNG seized the airport in Jalisco.",
+        "CJNG seized the airport in Jalisco.",
+      ),
     ).toEqual([]);
   });
 
@@ -36,6 +39,8 @@ describe("auditDecontextualization", () => {
   });
 
   it("ignores capitalized sentence-opener noise words", () => {
-    expect(auditDecontextualization("rebels took the city.", "The rebels took the city.")).toEqual([]);
+    expect(auditDecontextualization("rebels took the city.", "The rebels took the city.")).toEqual(
+      [],
+    );
   });
 });

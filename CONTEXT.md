@@ -1,6 +1,6 @@
 # VERITRACE
 
-An information-integrity workbench: a human pastes a document, the system decomposes it into checkable units and gathers evidence for each, and renders the result as a traversable evidence graph where the **human makes the final verdict** — not a black-box model. Explainability comes from the evidence trail (the *process*), not from a post-hoc natural-language justification.
+An information-integrity workbench: a human pastes a document, the system decomposes it into checkable units and gathers evidence for each, and renders the result as a traversable evidence graph where the **human makes the final verdict** — not a black-box model. Explainability comes from the evidence trail (the _process_), not from a post-hoc natural-language justification.
 
 ## Language
 
@@ -13,7 +13,7 @@ An **atomic, decontextualized, checkable assertion extracted from the Source tex
 _Avoid_: statement, fact (overloaded); sub-claim (merged into Claim — see below)
 
 **Sub-claim**:
-*Retired.* Earlier drafts split Claim → Sub-claim. With document-first input the extracted unit IS the atomic Claim, so the two collapse. Do not reintroduce a sub-claim layer (it would make the graph 5 deep and illegible).
+_Retired._ Earlier drafts split Claim → Sub-claim. With document-first input the extracted unit IS the atomic Claim, so the two collapse. Do not reintroduce a sub-claim layer (it would make the graph 5 deep and illegible).
 
 **Question**:
 A specific question the system generates to resolve a Claim ("What were Country X's 2010 emissions?"). The QA-pair (Question → answering Evidence) IS the explanation, per AVeriTeC. Makes the machine's reasoning observable to the Fact-checker.
@@ -28,11 +28,11 @@ The veracity label assigned to a Claim/Sub-claim, from the AVeriTeC 4-way set: *
 _Avoid_: result, answer, score, true/false
 
 **Evidence graph**:
-The traversable, interactive rendering of Source text → Claims → Questions → Evidence with typed edges (supports / refutes / contextualizes, carrying confidence). The graph *is* the explanation. This is VERITRACE's headline differentiator.
+The traversable, interactive rendering of Source text → Claims → Questions → Evidence with typed edges (supports / refutes / contextualizes, carrying confidence). The graph _is_ the explanation. This is VERITRACE's headline differentiator.
 _Avoid_: knowledge graph (broader/different), visualization
 
 **Primary evidence** vs **Answer key**:
-Two roles a retrieved link can play. **Primary evidence** is a source the pipeline is *allowed to retrieve and reason over* (a news-wire report, an official government statement, a registry). The **Answer key** is a finished third-party fact-check (PolitiFact, AFP, Factchequeado) used *only* to grade a run — it is **never fed to the pipeline**. Feeding a fact-check's conclusion into the graph is "Mode 1 in disguise" — the cheat to avoid.
+Two roles a retrieved link can play. **Primary evidence** is a source the pipeline is _allowed to retrieve and reason over_ (a news-wire report, an official government statement, a registry). The **Answer key** is a finished third-party fact-check (PolitiFact, AFP, Factchequeado) used _only_ to grade a run — it is **never fed to the pipeline**. Feeding a fact-check's conclusion into the graph is "Mode 1 in disguise" — the cheat to avoid.
 _Avoid_: source (ambiguous), reference
 
 **De novo check**:
@@ -49,24 +49,24 @@ The intended user — a journalist or professional fact-checker who uses VERITRA
 _Avoid_: user, reader, consumer
 
 **Investigation brief**:
-A post-run summary panel that auto-opens (left slide-in) when a run resolves: the Source-text Verdict, the support ratio, and an AI-generated narrative summary of the run. An **advisory legibility aid** — it lets the Fact-checker get the gist without panning/zooming the Evidence graph. Explicitly secondary to the graph (which remains *the* explanation), and it summarizes only what the graph already contains.
+A post-run summary panel that auto-opens (left slide-in) when a run resolves: the Source-text Verdict, the support ratio, and an AI-generated narrative summary of the run. An **advisory legibility aid** — it lets the Fact-checker get the gist without panning/zooming the Evidence graph. Explicitly secondary to the graph (which remains _the_ explanation), and it summarizes only what the graph already contains.
 _Avoid_: report, verdict (the brief restates the graph's Verdict, it does not author one), explanation (the graph is the explanation)
 
 ## Relationships
 
 The graph is 4 layers: **Source text → Claims → Questions → Evidence**.
 
-- A **Source text** *yields* (via extract + decontextualize) one or more **Claims**
-- A **Claim** *asks* one or more **Questions**
-- A **Question** is *answered by* zero or more **Evidence** items
+- A **Source text** _yields_ (via extract + decontextualize) one or more **Claims**
+- A **Claim** _asks_ one or more **Questions**
+- A **Question** is _answered by_ zero or more **Evidence** items
 - **Evidence** carries a stance toward its Claim via a typed, confidence-weighted edge (supports / refutes / contextualizes)
-- A **Verdict** is *proposed* by the system per Claim, *aggregated* to a Source-text-level assessment, and remains advisory to the **Fact-checker**
+- A **Verdict** is _proposed_ by the system per Claim, _aggregated_ to a Source-text-level assessment, and remains advisory to the **Fact-checker**
 - The **Evidence graph** renders all four layers and their edges as one traversable, live-building artifact
 
 ## Flagged ambiguities
 
 - "Source" was used for both the input document and a retrieved evidence item — resolved: the input is the **document**; a retrieved item is **Evidence**.
-- ~~OPEN: the human's role.~~ **RESOLVED:** VERITRACE is an *observability workbench* for professional Fact-checkers. The AI does the analysis; the graph makes it granularly observable; the Fact-checker's professional judgment is final. The model's Verdict is advisory. "Read-only" ≠ "human can't decide" — authority lives in the journalist, not a UI button. Recompute-on-input is a stretch.
+- ~~OPEN: the human's role.~~ **RESOLVED:** VERITRACE is an _observability workbench_ for professional Fact-checkers. The AI does the analysis; the graph makes it granularly observable; the Fact-checker's professional judgment is final. The model's Verdict is advisory. "Read-only" ≠ "human can't decide" — authority lives in the journalist, not a UI button. Recompute-on-input is a stretch.
 
 ## Decisions so far
 
@@ -86,6 +86,6 @@ The graph is 4 layers: **Source text → Claims → Questions → Evidence**.
 - **Checkable claim types**: this text-in + web-search build can honestly check **event/existence** and **official-denial** sub-claims de novo. It **cannot** check **media-provenance**, **synthetic-media**, or **origin/rumor-chain** sub-claims (no pixels, no reverse-image/geo/detector tooling) — those correctly return **Not-Enough-Evidence**. NEI here is the uncertainty-first principle working, not a failure.
 - **Demo hero claim**: Story 2 (El Mencho / Guadalajara airport) — "died" (Supported via wire) + "airport seized / hostages" (Refuted via official denial), both reachable de novo without any fact-checker.
 - **Out of scope for the build**: academic-integrity module (wrong audience). Pixel/provenance handling (image-or-video ingest + a hosted AI-media detector, the slop atom) is a **deferred stretch** — add after the core is solid if time allows; it's the honest path to checking provenance/synthetic-media claims later.
-- **Investigation brief (post-run summary)**: a left-side panel auto-opens when a run resolves, showing the Source-text Verdict, the support ratio, and an *AI-generated narrative summary*. This is a deliberate, bounded exception to "explainability = the process, not a post-hoc justification": the summary is an **advisory legibility aid** (so the Fact-checker gets the gist without panning/zooming the graph), explicitly secondary to the Evidence graph, which remains *the* explanation. It summarizes only the digest already in the graph — it never introduces facts or a Verdict the graph doesn't show.
+- **Investigation brief (post-run summary)**: a left-side panel auto-opens when a run resolves, showing the Source-text Verdict, the support ratio, and an _AI-generated narrative summary_. This is a deliberate, bounded exception to "explainability = the process, not a post-hoc justification": the summary is an **advisory legibility aid** (so the Fact-checker gets the gist without panning/zooming the graph), explicitly secondary to the Evidence graph, which remains _the_ explanation. It summarizes only the digest already in the graph — it never introduces facts or a Verdict the graph doesn't show.
 - **Run legibility caps (configurable)**: the graph grows as Claims × Questions × Evidence, so all three multipliers are user-set caps surfaced in the settings panel (claims, questions per claim, sources per search; each 1–10). Defaults stay low for a legible first run; raising them trades density/cost for thoroughness.
 - **Silent limits catalogue**: many other values bound what gets retrieved, read, and counted toward a Verdict — most hardcoded and invisible from the UI (e.g. only the top 6 Evidence per Question reach the Verdict; the 30/14-day retrieval window; reliability/confidence gates where a low-reliability source can only contextualize, never decide). All of them, alongside the configurable settings, are catalogued in `docs/pipeline-limits.md`. Note: the de-novo `excludeDomains` exclusion described above is currently **OFF** in code — see that doc for the actual current values.

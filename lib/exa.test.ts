@@ -64,7 +64,9 @@ describe("createExaSearch — de-novo retrieval", () => {
   it("focuses highlights on the supplied highlightQuery (the question), not the keyword query", async () => {
     withResults([]);
     await search()("keyword query", { highlightQuery: "did the airport get seized?" });
-    expect(searchMock.mock.calls[0][1].contents.highlights.query).toBe("did the airport get seized?");
+    expect(searchMock.mock.calls[0][1].contents.highlights.query).toBe(
+      "did the airport get seized?",
+    );
   });
 
   it("uses the standard 'auto' search type by default and no category/livecrawl", async () => {
@@ -161,7 +163,9 @@ describe("createExaSearch — result mapping", () => {
   });
 
   it("uses the provided favicon when present", async () => {
-    withResults([{ url: "https://x.com", title: "T", favicon: "https://x.com/fav.ico", highlights: ["h"] }]);
+    withResults([
+      { url: "https://x.com", title: "T", favicon: "https://x.com/fav.ico", highlights: ["h"] },
+    ]);
     const [ev] = await search()("q");
     expect(ev.faviconUrl).toBe("https://x.com/fav.ico");
   });
@@ -174,7 +178,12 @@ describe("createExaSearch — result mapping", () => {
 
   it("truncates the published date to a YYYY-MM-DD day", async () => {
     withResults([
-      { url: "https://x.com", title: "T", highlights: ["h"], publishedDate: "2026-02-22T14:26:00Z" },
+      {
+        url: "https://x.com",
+        title: "T",
+        highlights: ["h"],
+        publishedDate: "2026-02-22T14:26:00Z",
+      },
     ]);
     const [ev] = await search()("q");
     expect(ev.publishedDate).toBe("2026-02-22");

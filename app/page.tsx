@@ -8,8 +8,7 @@ export default function Home() {
       <div
         className="h-[2px] w-full shrink-0"
         style={{
-          background:
-            "linear-gradient(90deg, transparent, var(--accent), transparent 70%)",
+          background: "linear-gradient(90deg, transparent, var(--accent), transparent 70%)",
         }}
       />
       <header className="vt-reveal relative flex items-end justify-between gap-4 border-b border-[var(--line)] bg-[var(--bg-2)]/70 px-6 py-3 backdrop-blur">

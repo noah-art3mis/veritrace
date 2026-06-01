@@ -21,7 +21,12 @@ describe("extractClaims", () => {
 
     expect(askJSON).toHaveBeenCalledTimes(2);
     expect(claims).toHaveLength(1);
-    expect(claims[0]).toMatchObject({ id: "c1", text: "decontextualized claim", original: "frag", verdict: null });
+    expect(claims[0]).toMatchObject({
+      id: "c1",
+      text: "decontextualized claim",
+      original: "frag",
+      verdict: null,
+    });
   });
 
   it("skips triage entirely when segmentation finds nothing", async () => {
@@ -32,9 +37,16 @@ describe("extractClaims", () => {
 
   it("threads maxClaims through to the relevance cap", async () => {
     askJSON
-      .mockResolvedValueOnce(Array.from({ length: 4 }, (_, i) => ({ text: `u${i}`, original: "o" })))
       .mockResolvedValueOnce(
-        Array.from({ length: 4 }, (_, i) => ({ text: `c${i}`, checkable: true, checkworthy: true, relevant: true })),
+        Array.from({ length: 4 }, (_, i) => ({ text: `u${i}`, original: "o" })),
+      )
+      .mockResolvedValueOnce(
+        Array.from({ length: 4 }, (_, i) => ({
+          text: `c${i}`,
+          checkable: true,
+          checkworthy: true,
+          relevant: true,
+        })),
       );
     const claims = await extractClaims("source", ask, 2);
     expect(claims).toHaveLength(4); // full decomposition is preserved

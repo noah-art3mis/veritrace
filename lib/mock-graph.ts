@@ -32,15 +32,36 @@ export const MOCK_GRAPH: FactGraph = {
       original: "Puerto Vallarta arde en llamas",
       text: "In February 2026, Puerto Vallarta is engulfed in flames.",
       verdict: "nei",
-      rationale: "Claim rests on imagery this text-only build cannot verify (provenance/synthetic media).",
+      rationale:
+        "Claim rests on imagery this text-only build cannot verify (provenance/synthetic media).",
       checkable: false,
     },
   ],
   questions: [
-    { id: "q1", claimId: "c1", text: "Did Nemesio Oseguera 'El Mencho' die in February 2026?", status: "answered" },
-    { id: "q2", claimId: "c2", text: "Did the CJNG seize Guadalajara International Airport in February 2026?", status: "answered" },
-    { id: "q3", claimId: "c2", text: "Were US tourists taken hostage at Guadalajara airport?", status: "answered" },
-    { id: "q4", claimId: "c3", text: "Is there primary evidence Puerto Vallarta was on fire in February 2026?", status: "answered" },
+    {
+      id: "q1",
+      claimId: "c1",
+      text: "Did Nemesio Oseguera 'El Mencho' die in February 2026?",
+      status: "answered",
+    },
+    {
+      id: "q2",
+      claimId: "c2",
+      text: "Did the CJNG seize Guadalajara International Airport in February 2026?",
+      status: "answered",
+    },
+    {
+      id: "q3",
+      claimId: "c2",
+      text: "Were US tourists taken hostage at Guadalajara airport?",
+      status: "answered",
+    },
+    {
+      id: "q4",
+      claimId: "c3",
+      text: "Is there primary evidence Puerto Vallarta was on fire in February 2026?",
+      status: "answered",
+    },
   ],
   evidence: [
     {

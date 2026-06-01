@@ -32,7 +32,15 @@ export function graphToEvents(graph: FactGraph): TimedEvent[] {
   // Claims with no questions (unverifiable-by-text) resolve to their verdict immediately.
   for (const c of graph.claims) {
     if (!questionsByClaim.get(c.id)?.length) {
-      add({ type: "claim_verdict", id: c.id, verdict: c.verdict ?? "nei", rationale: c.rationale ?? "" }, 280);
+      add(
+        {
+          type: "claim_verdict",
+          id: c.id,
+          verdict: c.verdict ?? "nei",
+          rationale: c.rationale ?? "",
+        },
+        280,
+      );
     }
   }
 
@@ -59,7 +67,16 @@ export function graphToEvents(graph: FactGraph): TimedEvent[] {
     remaining.set(q.claimId, rem);
     if (rem === 0) {
       const c = claimById.get(q.claimId);
-      if (c) add({ type: "claim_verdict", id: c.id, verdict: c.verdict ?? "nei", rationale: c.rationale ?? "" }, 200);
+      if (c)
+        add(
+          {
+            type: "claim_verdict",
+            id: c.id,
+            verdict: c.verdict ?? "nei",
+            rationale: c.rationale ?? "",
+          },
+          200,
+        );
     }
   }
 

@@ -110,7 +110,9 @@ describe("POST /api/check streaming", () => {
   });
 
   it("builds the model caller from the requested config", async () => {
-    await POST(post(JSON.stringify({ text: "hi", config: { model: "claude-opus-4-8", temperature: 0.3 } })));
+    await POST(
+      post(JSON.stringify({ text: "hi", config: { model: "claude-opus-4-8", temperature: 0.3 } })),
+    );
     expect(createAnthropic).toHaveBeenCalledWith(
       expect.objectContaining({ model: "claude-opus-4-8", temperature: 0.3 }),
     );
@@ -119,7 +121,14 @@ describe("POST /api/check streaming", () => {
   it("forwards a user-supplied Exa key and retrieval config to the search factory", async () => {
     await POST(post(JSON.stringify({ text: "hi", config: { exaKey: "exa-user", maxSources: 4 } })));
     expect(createExaSearch).toHaveBeenCalledWith(
-      expect.objectContaining({ exaKey: "exa-user", numResults: 4, maxChars: DEFAULT_CHARS, deepSearch: false, category: "", preferFresh: false }),
+      expect.objectContaining({
+        exaKey: "exa-user",
+        numResults: 4,
+        maxChars: DEFAULT_CHARS,
+        deepSearch: false,
+        category: "",
+        preferFresh: false,
+      }),
     );
   });
 

@@ -155,7 +155,9 @@ export function parseConfig(input: unknown): RunConfig {
   if (raw.maxQuestions !== undefined) {
     const q = raw.maxQuestions;
     if (typeof q !== "number" || !Number.isInteger(q) || q < MIN_QUESTIONS || q > MAX_QUESTIONS) {
-      throw new Error(`maxQuestions must be an integer between ${MIN_QUESTIONS} and ${MAX_QUESTIONS}`);
+      throw new Error(
+        `maxQuestions must be an integer between ${MIN_QUESTIONS} and ${MAX_QUESTIONS}`,
+      );
     }
     maxQuestions = q;
   }

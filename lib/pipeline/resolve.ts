@@ -55,7 +55,10 @@ const SEARCH_TOOL: ToolDef = {
   input_schema: {
     type: "object",
     properties: {
-      query: { type: "string", description: "A focused, standalone web query (include date/place/actor)." },
+      query: {
+        type: "string",
+        description: "A focused, standalone web query (include date/place/actor).",
+      },
     },
     required: ["query"],
   },
@@ -107,17 +110,30 @@ export async function resolveQuestion(
 
   const classified = await classifyEvidence(claim, question, [...collected.values()], deps.ask);
   const evidence = rankAndCapEvidence(classified, EVIDENCE_PER_QUESTION_CAP);
-  const trace: QuestionTrace = { hydePassage: hypothetical, searchQueries, gatherSummary: result.text.trim() };
+  const trace: QuestionTrace = {
+    hydePassage: hypothetical,
+    searchQueries,
+    gatherSummary: result.text.trim(),
+  };
   return { evidence, trace };
 }
 
-const RELIABILITY_RANK: Record<EvidenceItem["reliability"], number> = { high: 2, medium: 1, low: 0 };
+const RELIABILITY_RANK: Record<EvidenceItem["reliability"], number> = {
+  high: 2,
+  medium: 1,
+  low: 0,
+};
 
 /** Decision-relevance score: deciding evidence first, then reliability, clear stance, confidence. */
 function evidenceScore(e: EvidenceItem): number {
   const deciding = isDeciding(e) ? 1 : 0;
   const clearStance = e.stance === "contextualizes" ? 0 : 1;
-  return deciding * 100 + RELIABILITY_RANK[e.reliability] * 10 + clearStance * 5 + (e.stanceConfidence ?? 0);
+  return (
+    deciding * 100 +
+    RELIABILITY_RANK[e.reliability] * 10 +
+    clearStance * 5 +
+    (e.stanceConfidence ?? 0)
+  );
 }
 
 /**
@@ -140,11 +156,7 @@ export function rankAndCapEvidence(evidence: EvidenceItem[], limit: number): Evi
 }
 
 /** A one-line advisory "why" — composed from the deciding evidence, never asserted as truth. */
-export function rationaleFor(
-  claim: ClaimItem,
-  verdict: Verdict,
-  evidence: EvidenceItem[],
-): string {
+export function rationaleFor(claim: ClaimItem, verdict: Verdict, evidence: EvidenceItem[]): string {
   if (!claim.checkable) {
     return "Rests on imagery or media provenance this text-only build cannot verify.";
   }

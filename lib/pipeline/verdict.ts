@@ -20,7 +20,9 @@ const DECIDING_RELIABILITY: ReadonlySet<Reliability> = new Set<Reliability>(["hi
 
 /** Whether an evidence item carries enough quality + clarity to move a verdict. */
 export function isDeciding(e: EvidenceItem): boolean {
-  return DECIDING_RELIABILITY.has(e.reliability) && (e.stanceConfidence ?? 0) >= MIN_STANCE_CONFIDENCE;
+  return (
+    DECIDING_RELIABILITY.has(e.reliability) && (e.stanceConfidence ?? 0) >= MIN_STANCE_CONFIDENCE
+  );
 }
 
 /** Aggregate a single claim's evidence into its advisory Verdict. */
@@ -67,7 +69,14 @@ export function sourceVerdict(claimVerdicts: Verdict[]): Verdict {
  * the relevance-filtered claims separately so they're visible without inflating N.
  */
 export function tallyClaims(claimVerdicts: Verdict[], dropped = 0): ClaimTally {
-  const tally: ClaimTally = { supported: 0, refuted: 0, conflicting: 0, nei: 0, total: claimVerdicts.length, dropped };
+  const tally: ClaimTally = {
+    supported: 0,
+    refuted: 0,
+    conflicting: 0,
+    nei: 0,
+    total: claimVerdicts.length,
+    dropped,
+  };
   for (const v of claimVerdicts) tally[v] += 1;
   return tally;
 }

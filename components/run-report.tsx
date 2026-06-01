@@ -38,8 +38,15 @@ function RatioBar({ graph }: { graph: FactGraph }) {
       </div>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[9.5px] uppercase tracking-wider">
         {VERDICT_ORDER.filter((v) => d.byVerdict[v] > 0).map((v) => (
-          <span key={v} className="inline-flex items-center gap-1.5" style={{ color: VERDICT_META[v].color }}>
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: VERDICT_META[v].color }} />
+          <span
+            key={v}
+            className="inline-flex items-center gap-1.5"
+            style={{ color: VERDICT_META[v].color }}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: VERDICT_META[v].color }}
+            />
             {d.byVerdict[v]} {VERDICT_SHORT[v]}
           </span>
         ))}
@@ -109,7 +116,10 @@ export default function RunReport({
           {m && (
             <div className="mt-2 flex items-center gap-2">
               <span className="h-2 w-2 rounded-full" style={{ background: m.color }} />
-              <span className="font-display text-[22px] italic leading-none" style={{ color: m.color }}>
+              <span
+                className="font-display text-[22px] italic leading-none"
+                style={{ color: m.color }}
+              >
                 {m.label}
               </span>
             </div>

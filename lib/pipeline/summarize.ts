@@ -1,10 +1,4 @@
-import type {
-  FactGraph,
-  Verdict,
-  Stance,
-  Reliability,
-  SourceType,
-} from "../graph-types";
+import type { FactGraph, Verdict, Stance, Reliability, SourceType } from "../graph-types";
 import type { AnthropicCaller } from "../anthropic";
 import { isRelevanceDropped } from "./claim-status";
 import { VERDICT_META } from "../visuals";

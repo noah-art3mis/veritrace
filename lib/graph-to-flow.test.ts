@@ -117,7 +117,12 @@ describe("conflictEdges", () => {
   // A single claim whose two questions returned opposing DECIDING evidence — the case where
   // "Conflicting" should mean "these two specific sources disagree" (CLUE).
   function conflictingClaimGraph(): FactGraph {
-    const ev = (id: string, qid: string, stance: EvidenceItem["stance"], conf: number): EvidenceItem => ({
+    const ev = (
+      id: string,
+      qid: string,
+      stance: EvidenceItem["stance"],
+      conf: number,
+    ): EvidenceItem => ({
       id,
       questionId: qid,
       title: "t",
@@ -136,10 +141,7 @@ describe("conflictEdges", () => {
         { id: "c1-q1", claimId: "c1", text: "q?", status: "answered" },
         { id: "c1-q2", claimId: "c1", text: "q?", status: "answered" },
       ],
-      evidence: [
-        ev("sup", "c1-q1", "supports", 0.9),
-        ev("ref", "c1-q2", "refutes", 0.95),
-      ],
+      evidence: [ev("sup", "c1-q1", "supports", 0.9), ev("ref", "c1-q2", "refutes", 0.95)],
     };
   }
 

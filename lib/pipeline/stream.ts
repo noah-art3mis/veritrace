@@ -58,7 +58,11 @@ export async function* streamPipeline(
   for (const q of allQuestions) yield { type: "question_status", id: q.id, status: "searching" };
 
   const tasks = allQuestions.map((q) =>
-    resolveQuestion(claimById.get(q.claimId)!, q, deps).then(({ evidence, trace }) => ({ q, evidence, trace })),
+    resolveQuestion(claimById.get(q.claimId)!, q, deps).then(({ evidence, trace }) => ({
+      q,
+      evidence,
+      trace,
+    })),
   );
 
   for await (const { q, evidence, trace } of asCompleted(tasks)) {
@@ -74,7 +78,12 @@ export async function* streamPipeline(
       const claim = claimById.get(q.claimId)!;
       const verdict = claimVerdict(claim, bucket);
       verdictByClaim.set(q.claimId, verdict);
-      yield { type: "claim_verdict", id: claim.id, verdict, rationale: rationaleFor(claim, verdict, bucket) };
+      yield {
+        type: "claim_verdict",
+        id: claim.id,
+        verdict,
+        rationale: rationaleFor(claim, verdict, bucket),
+      };
     }
   }
 
