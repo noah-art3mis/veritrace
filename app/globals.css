@@ -112,6 +112,28 @@ body::after {
   }
 }
 
+/* Radial circle pop entrance (cards use .vt-node above; circles want a centred scale-up). */
+.vt-pop-circle {
+  animation: vt-pop-scale 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: center;
+}
+@keyframes vt-pop-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* While the force simulation drives node positions every frame, the wrapper must NOT also
+   CSS-transition its transform — the tween would lag and fight the physics. */
+.vt-sim-active .react-flow__node {
+  transition: none;
+}
+
 /* Searching shimmer — a phosphor sweep across the question chip while Exa runs. */
 .vt-shimmer {
   background-image: linear-gradient(
@@ -176,5 +198,20 @@ body::after {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* Honour the OS "reduce motion" setting: drop every entrance/idle animation and node transition.
+   The graph still renders (the force layer falls back to static placement); it just doesn't move. */
+@media (prefers-reduced-motion: reduce) {
+  .vt-node,
+  .vt-pop-circle,
+  .vt-pulse,
+  .vt-shimmer,
+  .vt-reveal {
+    animation: none !important;
+  }
+  .react-flow__node {
+    transition: none !important;
   }
 }

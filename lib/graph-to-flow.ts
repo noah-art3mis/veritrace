@@ -19,7 +19,7 @@ export type AppNode = SourceNode | ClaimNode | QuestionNode | EvidenceNode;
 
 // Approximate card sizes per layer — dagre needs these to space things; React Flow
 // then renders the real DOM. Widths here must match the `width` we set on each node.
-const SIZES: Record<AppNode["type"], { w: number; h: number }> = {
+export const SIZES: Record<AppNode["type"], { w: number; h: number }> = {
   source: { w: 380, h: 150 },
   claim: { w: 320, h: 160 },
   question: { w: 280, h: 80 },
