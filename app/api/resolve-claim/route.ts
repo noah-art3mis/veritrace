@@ -1,5 +1,6 @@
 import { createReasoner } from "@/lib/reasoner";
 import { createSearchProvider } from "@/lib/search";
+import { createReranker } from "@/lib/pipeline/rerank";
 import { parseConfig } from "@/lib/run-config";
 import { generateQuestions } from "@/lib/pipeline/questions";
 import { resolveQuestion, rationaleFor } from "@/lib/pipeline/resolve";
@@ -73,6 +74,10 @@ export async function POST(request: Request) {
       }).search,
       maxClaims: config.maxClaims,
       maxQuestions: config.maxQuestions,
+      // Opt-in embedding re-rank (#57) — same gating as /api/check.
+      ...(config.rerank
+        ? { rerank: createReranker({ cohereKey: config.cohereKey }) ?? undefined }
+        : {}),
     };
   } catch (err) {
     return Response.json(

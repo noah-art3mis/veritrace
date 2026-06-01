@@ -119,12 +119,21 @@ export interface RunConfig {
    * you test the full pipeline without short-circuiting.
    */
   factCheckShortCircuit: boolean;
+  /**
+   * Opt-in embedding re-rank of gathered candidates (#57, ADR 0010): when on AND a Cohere key
+   * resolves, the gather stage embeds the candidates + the directional hypotheticals and keeps the
+   * top-N by cosine before classify. Default FALSE — VERITRACE keeps no embeddings in the de-novo
+   * path (ADR 0005); this is the heavier alternative to RRF (#56). Off / no key ⇒ no re-rank.
+   */
+  rerank: boolean;
   /** User-supplied key; blank ⇒ the server falls back to its ANTHROPIC_API_KEY env. */
   anthropicKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its EXA_API_KEY env. */
   exaKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its GOOGLE_FACT_CHECK_API_KEY env. */
   googleFactCheckKey?: string;
+  /** User-supplied Cohere key for the opt-in re-rank; blank ⇒ the server's COHERE_API_KEY env. */
+  cohereKey?: string;
 }
 
 // Default to temperature 0 — deterministic output is the whole point of a
@@ -141,6 +150,7 @@ export const DEFAULT_CONFIG: RunConfig = {
   category: "",
   preferFresh: false,
   factCheckShortCircuit: false,
+  rerank: false,
 };
 
 function isModelId(value: unknown): value is ModelId {
@@ -239,8 +249,10 @@ export function parseConfig(input: unknown): RunConfig {
     category,
     preferFresh: Boolean(raw.preferFresh),
     factCheckShortCircuit: Boolean(raw.factCheckShortCircuit),
+    rerank: Boolean(raw.rerank),
     anthropicKey: cleanKey(raw.anthropicKey),
     exaKey: cleanKey(raw.exaKey),
     googleFactCheckKey: cleanKey(raw.googleFactCheckKey),
+    cohereKey: cleanKey(raw.cohereKey),
   };
 }

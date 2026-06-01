@@ -1,6 +1,7 @@
 import { streamPipeline } from "@/lib/pipeline/stream";
 import { createReasoner } from "@/lib/reasoner";
 import { createSearchProvider } from "@/lib/search";
+import { createReranker } from "@/lib/pipeline/rerank";
 import { createFactCheckLookup } from "@/lib/factcheck";
 import { parseConfig } from "@/lib/run-config";
 import { apiRateLimiter, clientIp } from "@/lib/rate-limit";
@@ -67,6 +68,11 @@ export async function POST(request: Request) {
       }).search,
       maxClaims: config.maxClaims,
       maxQuestions: config.maxQuestions,
+      // Opt-in embedding re-rank (#57). Built only when the flag is on AND a Cohere key resolves;
+      // absent otherwise, so the pipeline keeps its no-embeddings de-novo path by default.
+      ...(config.rerank
+        ? { rerank: createReranker({ cohereKey: config.cohereKey }) ?? undefined }
+        : {}),
       // Opt-in fact-check short-circuit. Built only when the flag is on, so leaving it off
       // (the default) means `factCheck` is absent and the pipeline runs fully de novo. A
       // flag-on-but-no-key run throws here and surfaces as a 400, like the other keys.
