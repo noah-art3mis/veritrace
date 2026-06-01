@@ -192,15 +192,17 @@ export default function Workbench() {
       <div className="vt-reveal border-b border-[var(--line)] bg-[var(--bg-2)]/60 px-6 py-3.5">
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
+            {/* Mobile-only collapse toggle. The verbose "the artifact under examination" header
+                was dropped (#36) — the textarea placeholder already explains the input; on desktop
+                the zone is always open, so no toggle is needed there. */}
             <button
               type="button"
               onClick={() => setInputOpen((o) => !o)}
               aria-expanded={inputOpen}
               aria-label={inputOpen ? "Collapse input" : "Expand input"}
-              className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)] md:cursor-default"
+              className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)] md:hidden"
             >
-              <span className="md:hidden text-[var(--ink-2)]">{inputOpen ? "▾" : "▸"}</span>▣ Paste
-              source text · the artifact under examination
+              <span className="text-[var(--ink-2)]">{inputOpen ? "▾" : "▸"}</span> Source text
             </button>
             <button
               type="button"
@@ -233,7 +235,14 @@ export default function Workbench() {
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="A tweet, WhatsApp forward, or Facebook caption… VERITRACE decomposes it into checkable claims and gathers primary sources, live."
+                onKeyDown={(e) => {
+                  // Enter runs the check; Shift+Enter inserts a newline (#22).
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    check(text);
+                  }
+                }}
+                placeholder="A tweet, WhatsApp forward, or Facebook caption… VERITRACE decomposes it into checkable claims and gathers primary sources, live. (Enter to run, Shift+Enter for a new line.)"
                 rows={2}
                 className="w-full resize-none bg-transparent px-3.5 py-2.5 text-[13.5px] leading-relaxed text-[var(--ink-1)] placeholder:italic placeholder:text-[var(--ink-3)] focus:outline-none"
               />
@@ -320,6 +329,22 @@ export default function Workbench() {
           >
             ▣ Brief
           </button>
+        )}
+        {/* The canvas is pre-filled with the El Mencho MOCK_GRAPH on first load; label it as a
+            sample so it doesn't read as the user's own result already loading (#28). */}
+        {runId === 0 && !loading && (
+          <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2">
+            <div
+              className="rounded-full border px-3.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] shadow-lg backdrop-blur"
+              style={{
+                borderColor: "var(--line-2)",
+                background: "rgba(11,14,21,0.85)",
+                color: "var(--ink-3)",
+              }}
+            >
+              ▸ Sample analysis — paste your own above
+            </div>
+          </div>
         )}
         {loading && (
           <div className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2">
