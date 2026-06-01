@@ -43,7 +43,7 @@ const GATHER_SYSTEM = `You are the evidence-gathering stage of VERITRACE, resolv
 How to search:
 - Issue focused, standalone queries (keep the date / place / actor so keyword search anchors).
 - KEEP SEARCHING until you have at least ${MIN_DECIDING} reliable sources that take a CLEAR stance on the claim, INCLUDING at least one PRIMARY source — the originating report, an official statement, or a news wire — not just re-reporting that echoes the viral claim.
-- Vary the angle across calls: the event itself, whether authorities CONFIRMED or DENIED it, and the originating outlet. Don't repeat a query that already returned good results.
+- Vary the angle across calls: the event itself, whether authoritative sources confirm or contradict it, and the originating outlet. Don't repeat a query that already returned good results.
 - Stop once the bar is met, or once reasonable queries are exhausted. Never fabricate — only the tool's results count.
 
 When done, reply with a one-line summary of what you found.`;
