@@ -101,8 +101,12 @@ export default function Workbench() {
       preferFresh: settings.preferFresh,
       factCheckShortCircuit: settings.factCheckShortCircuit,
       anthropicKey: settings.anthropicKey || undefined,
+      openaiKey: settings.openaiKey || undefined,
+      geminiKey: settings.geminiKey || undefined,
+      deepseekKey: settings.deepseekKey || undefined,
       exaKey: settings.exaKey || undefined,
       googleFactCheckKey: settings.googleFactCheckKey || undefined,
+      cohereKey: settings.cohereKey || undefined,
     };
   }
 

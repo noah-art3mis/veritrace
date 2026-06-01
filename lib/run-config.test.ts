@@ -201,6 +201,19 @@ describe("parseConfig API keys", () => {
     expect(cfg.exaKey).toBe("exa-456");
   });
 
+  it("passes through the model-provider and rerank keys", () => {
+    const cfg = parseConfig({
+      openaiKey: " oa-1 ",
+      geminiKey: "gm-1",
+      deepseekKey: "ds-1",
+      cohereKey: "co-1",
+    });
+    expect(cfg.openaiKey).toBe("oa-1");
+    expect(cfg.geminiKey).toBe("gm-1");
+    expect(cfg.deepseekKey).toBe("ds-1");
+    expect(cfg.cohereKey).toBe("co-1");
+  });
+
   it("treats blank/whitespace keys as absent (env fallback)", () => {
     const cfg = parseConfig({ anthropicKey: "   ", exaKey: "" });
     expect(cfg.anthropicKey).toBeUndefined();
