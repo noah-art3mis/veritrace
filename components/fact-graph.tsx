@@ -16,6 +16,7 @@ import { nodeTypes, InternalsContext, WithholdVerdictContext } from "./graph-nod
 import { circleNodeTypes, NodeDetail } from "./graph-circles";
 import { useGraphFlow } from "./use-graph-flow";
 import { useRadialFlow } from "./use-radial-flow";
+import { useIsMobile } from "./use-is-mobile";
 import type { AppNode } from "@/lib/graph-to-flow";
 import type { FactGraph } from "@/lib/graph-types";
 
@@ -57,6 +58,7 @@ export default function FactGraphCanvas({
   showMinimap?: boolean;
   withholdVerdict?: boolean;
 }) {
+  const isMobile = useIsMobile();
   const [view, setView] = useState<ViewMode>("cards");
   // Peek-then-open (ADR 0003): hover/first-tap peeks (pinned), second click opens, pane clears.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -168,7 +170,9 @@ export default function FactGraphCanvas({
             </Panel>
           )}
 
-          {mounted && showMinimap && nodes.length <= MINIMAP_MAX_NODES && (
+          {/* On a small/touch viewport the minimap is an unreadable speckle eating scarce screen,
+              so force it off there regardless of the toggle or the node-count cap (#4). */}
+          {mounted && !isMobile && showMinimap && nodes.length <= MINIMAP_MAX_NODES && (
             <MiniMap
               pannable
               zoomable

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import FactGraphCanvas from "./fact-graph";
 import RunReport from "./run-report";
 import { SettingsPanel, DEFAULT_SETTINGS, type Settings } from "./settings-panel";
+import { useIsMobile } from "./use-is-mobile";
 import { MODELS, supportsTemperature } from "@/lib/run-config";
 import { MOCK_GRAPH } from "@/lib/mock-graph";
 import type { FactGraph } from "@/lib/graph-types";
@@ -58,6 +59,7 @@ export default function Workbench() {
   const [runId, setRunId] = useState(0);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
+  const isMobile = useIsMobile();
   // Mobile-only: collapse the input zone (textarea + specimens + settings) so the evidence
   // graph gets the full small screen. Inert on desktop (md+), where the zone always shows.
   const [inputOpen, setInputOpen] = useState(true);
@@ -166,6 +168,9 @@ export default function Workbench() {
     setLoading(true);
     setError(null);
     setCached(false);
+    // On mobile, hand the small screen to the evidence graph the moment a run starts — the
+    // input zone has done its job (#6). Desktop keeps it open (the collapse is md:-inert anyway).
+    if (isMobile) setInputOpen(false);
     resetReport();
     // Reset to an empty graph for this source; the stream builds it node by node.
     setGraph(emptyGraph(trimmed));
