@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import FactGraphCanvas from "./fact-graph";
 import RunReport from "./run-report";
 import { SettingsPanel, DEFAULT_SETTINGS, type Settings } from "./settings-panel";
+import { RunErrorModal } from "./run-error-modal";
 import { useIsMobile } from "./use-is-mobile";
 import { MODELS, supportsTemperature } from "@/lib/run-config";
 import { MOCK_GRAPH } from "@/lib/mock-graph";
@@ -29,7 +30,7 @@ function loadSettings(): Settings {
 
 // Curated demo posts (real viral misinformation, text-native) — see demo-corpus/SOURCES.md.
 // The El Mencho story is the de-novo hero; the others give textured mixed-verdict graphs.
-// `country` (flag + ISO code) is shown on the chip so the specimen's origin reads at a glance (#21).
+// `country` (flag + ISO code) is shown on the chip so the example's origin reads at a glance (#21).
 const EXAMPLES: { label: string; text: string; country: string }[] = [
   {
     label: "El Mencho · GDL airport",
@@ -62,7 +63,7 @@ export default function Workbench() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
   const isMobile = useIsMobile();
-  // Mobile-only: collapse the input zone (textarea + specimens + settings) so the evidence
+  // Mobile-only: collapse the input zone (textarea + examples + settings) so the evidence
   // graph gets the full small screen. Inert on desktop (md+), where the zone always shows.
   const [inputOpen, setInputOpen] = useState(true);
   // Post-run brief: the left slide-in panel with verdict + ratio + AI summary. The narrative
@@ -292,7 +293,7 @@ export default function Workbench() {
             >
               {/* On mobile show only the model — the full temp/claims/q/src strip is meaningless
                   to a first-timer and eats the scarce first screen (#27). Tap to expand settings. */}
-              ⚙ {MODELS[settings.model].label}
+              ⚙ Settings: {MODELS[settings.model].label}
               <span className="hidden sm:inline">
                 {" "}
                 · temp{" "}
@@ -332,13 +333,13 @@ export default function Workbench() {
                 className="w-full resize-none bg-transparent px-3.5 py-2.5 text-[13.5px] leading-relaxed text-[var(--ink-1)] placeholder:italic placeholder:text-[var(--ink-3)] focus:outline-none"
               />
             </div>
-            {/* On mobile the specimens become a single horizontal scroll-snap row (instead of four
+            {/* On mobile the examples become a single horizontal scroll-snap row (instead of four
                 full-width stacked rows) and the Run button drops to its own row, reclaiming the
                 first screen (#27). From sm+ it's the original inline wrap with Run pushed right. */}
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:pb-0">
                 <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[0.18em] text-[var(--ink-3)]">
-                  Specimens
+                  Examples
                 </span>
                 {EXAMPLES.map((ex, i) => (
                   <button
@@ -381,20 +382,23 @@ export default function Workbench() {
                 )}
               </button>
             </div>
-            {error && (
-              <p className="font-mono text-[11px]" style={{ color: "var(--refutes)" }}>
-                ⚠ {error}
-              </p>
-            )}
           </div>
         </div>
       </div>
+
+      {/* Run-fatal errors get a modal (#96), not a missable inline line. Retry re-runs the
+          current input; weaker models fail the parse path often enough to need a real surface. */}
+      <RunErrorModal
+        error={error}
+        modelLabel={MODELS[settings.model].label}
+        onDismiss={() => setError(null)}
+        onRetry={() => check(text)}
+      />
 
       <main className="relative flex-1">
         <FactGraphCanvas
           key={runId}
           graph={graph}
-          showInternals={settings.showInternals}
           showMinimap={settings.showMinimap}
           withholdVerdict={settings.withholdVerdict}
           onReinclude={reincludeClaim}

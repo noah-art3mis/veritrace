@@ -56,23 +56,24 @@ function FitOnChange({ dep }: { dep: unknown }) {
 
 export default function FactGraphCanvas({
   graph,
-  showInternals = false,
   showMinimap = true,
   withholdVerdict = false,
   onReinclude,
 }: {
   graph: FactGraph;
-  showInternals?: boolean;
   showMinimap?: boolean;
   withholdVerdict?: boolean;
   onReinclude?: (claim: ClaimItem) => void;
 }) {
   const isMobile = useIsMobile();
   const [view, setView] = useState<ViewMode>("cards");
-  // Peek-then-open (ADR 0003): hover/first-tap peeks (pinned), second click opens, pane clears.
+  // Pipeline internals (HyDE seed, agent queries, stance confidence, raw fragments) are a graph
+  // affordance, not a run setting — toggled live from the "details" button beside the view toggle.
+  const [showInternals, setShowInternals] = useState(false);
+  // Radial detail: hover surfaces the full card; clicking a circle pins it so it survives the
+  // mouse leaving; a pane click (or close) clears it.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [pinnedId, setPinnedId] = useState<string | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
 
   const card = useGraphFlow(graph);
   const radial = useRadialFlow(graph);
@@ -81,7 +82,6 @@ export default function FactGraphCanvas({
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n as AppNode])), [nodes]);
   const peekNode = isRadial ? byId.get(hoveredId ?? pinnedId ?? "") : undefined;
-  const openNode = isRadial ? byId.get(openId ?? "") : undefined;
 
   // Suggest the radial overview once the card graph crosses the legibility threshold (once).
   const [suggested, setSuggested] = useState(false);
@@ -119,13 +119,10 @@ export default function FactGraphCanvas({
             onNodeMouseLeave={() => isRadial && setHoveredId(null)}
             onNodeClick={(_, n) => {
               if (!isRadial) return;
-              setPinnedId((prev) =>
-                prev === n.id ? (setOpenId(n.id), prev) : (setOpenId(null), n.id),
-              );
+              setPinnedId((prev) => (prev === n.id ? null : n.id));
             }}
             onPaneClick={() => {
               setPinnedId(null);
-              setOpenId(null);
               setHoveredId(null);
             }}
           >
@@ -186,37 +183,36 @@ export default function FactGraphCanvas({
                     setView((v) => (v === "radial" ? "cards" : "radial"));
                     setSuggested(true);
                     setPinnedId(null);
-                    setOpenId(null);
                   }}
                   className="rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--ink-2)] shadow-lg hover:bg-[var(--line)]"
                 >
                   {isRadial ? "▦ Cards" : "◎ Radial"}
                 </button>
+                {/* Reveals the pipeline internals (HyDE seed, agent queries, stance confidence,
+                    raw fragments) live in the graph — accent-lit while on. */}
+                <button
+                  onClick={() => setShowInternals((s) => !s)}
+                  aria-pressed={showInternals}
+                  className={`rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider shadow-lg ${
+                    showInternals
+                      ? "border-[var(--accent)] bg-[var(--panel-2)] text-[var(--accent)]"
+                      : "border-[var(--line)] bg-[var(--panel-2)] text-[var(--ink-2)] hover:bg-[var(--line)]"
+                  }`}
+                >
+                  {showInternals ? "◉ Details" : "○ Details"}
+                </button>
               </div>
               <GraphLegend />
             </Panel>
 
-            {peekNode && !openNode && (
+            {peekNode && (
               <Panel position="bottom-center" className="!mb-3">
                 <NodeDetail
                   node={peekNode}
-                  full={false}
-                  onOpen={() => setOpenId(peekNode.id)}
                   onClose={() => {
                     setPinnedId(null);
                     setHoveredId(null);
                   }}
-                />
-              </Panel>
-            )}
-
-            {openNode && (
-              <Panel position="top-center" className="!mt-3">
-                <NodeDetail
-                  node={openNode}
-                  full
-                  onOpen={() => {}}
-                  onClose={() => setOpenId(null)}
                 />
               </Panel>
             )}

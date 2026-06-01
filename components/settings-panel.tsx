@@ -52,8 +52,6 @@ export interface Settings {
   googleFactCheckKey: string;
   /** User-supplied Cohere key for the opt-in embedding re-rank; "" = the server's COHERE_API_KEY. */
   cohereKey: string;
-  /** Display-only: reveal the pipeline's hidden retrieval internals in the graph. */
-  showInternals: boolean;
   /**
    * Display-only: hide the machine's aggregate Verdict (Source card badge + support ratio,
    * Investigation brief verdict + narrative) so the Fact-checker reads the evidence and
@@ -84,7 +82,6 @@ export const DEFAULT_SETTINGS: Settings = {
   exaKey: "",
   googleFactCheckKey: "",
   cohereKey: "",
-  showInternals: false,
   withholdVerdict: false,
   showMinimap: true,
 };
@@ -180,12 +177,12 @@ export function SettingsPanel({
         }`}
       />
 
-      {/* The sidebar itself — a full-height drawer that slides in from the right. */}
+      {/* The sidebar itself — a full-height drawer that slides in from the left. */}
       <aside
         aria-hidden={!open}
         aria-label="Run settings"
-        className={`fixed right-0 top-0 z-50 flex h-full w-[360px] max-w-[92vw] flex-col border-l border-[var(--line-2)] bg-[var(--bg-2)] shadow-[0_0_60px_rgba(0,0,0,0.6)] transition-transform duration-300 ${
-          open ? "translate-x-0" : "translate-x-full"
+        className={`fixed left-0 top-0 z-50 flex h-full w-[360px] max-w-[92vw] flex-col border-r border-[var(--line-2)] bg-[var(--bg-2)] shadow-[0_0_60px_rgba(0,0,0,0.6)] transition-transform duration-300 ${
+          open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Header */}
@@ -215,7 +212,7 @@ export function SettingsPanel({
                 className={fieldCls}
               >
                 {(Object.entries(MODELS) as [ModelId, ModelInfo][]).map(([id, info]) => (
-                  <option key={id} value={id}>
+                  <option key={id} value={id} className="font-mono">
                     {info.label} · ${info.inputCost}/${info.outputCost} per 1M
                   </option>
                 ))}
@@ -374,9 +371,11 @@ export function SettingsPanel({
                 onChange={(e) => set("category", e.target.value as ExaCategory | "")}
                 className={fieldCls}
               >
-                <option value="">Any source</option>
+                <option value="" className="font-mono">
+                  Any source
+                </option>
                 {EXA_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
+                  <option key={c} value={c} className="font-mono">
                     {c[0].toUpperCase() + c.slice(1)}
                   </option>
                 ))}
@@ -416,18 +415,6 @@ export function SettingsPanel({
 
           {/* ── Display ─────────────────────────────────────────────── */}
           <Section title="Display">
-            {/* Show pipeline internals — display-only; reveals hidden retrieval steps in the graph */}
-            <div className="flex flex-col gap-1.5">
-              <label className={labelCls}>Show pipeline internals</label>
-              <Toggle
-                checked={settings.showInternals}
-                onClick={() => set("showInternals", !settings.showInternals)}
-              />
-              <span className={helpCls}>
-                HyDE seed, agent queries + summary, stance confidence, raw fragment.
-              </span>
-            </div>
-
             {/* Minimap — display-only; the navigator thumbnail in the graph corner */}
             <div className="flex flex-col gap-1.5">
               <label className={labelCls}>Minimap</label>
