@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { THINKING_BUDGET, supportsTemperature, type RunConfig } from "./run-config";
-import { parseJSON } from "./parse-json";
+import { askJSONWithRepair, type JSONOpts } from "./ask-json";
 
 // Per-request Anthropic access. createAnthropic binds the model, temperature, thinking
 // setting, and API key from one RunConfig, so the whole pipeline can fan out many calls
@@ -34,8 +34,8 @@ export interface ToolLoopResult {
 export interface AnthropicCaller {
   /** Send a single prompt and return the concatenated text of the response. */
   askText(prompt: string, opts?: AskOpts): Promise<string>;
-  /** Ask for JSON and parse it (tolerating fences / surrounding prose). */
-  askJSON<T>(prompt: string, opts?: AskOpts): Promise<T>;
+  /** Ask for JSON and parse it (tolerating fences / surrounding prose), with one repair re-ask. */
+  askJSON<T>(prompt: string, opts?: JSONOpts): Promise<T>;
   /** Run a Claude function-calling loop: the model searches via `tools` until it stops or maxSteps. */
   askWithTools(prompt: string, opts: ToolLoopOpts): Promise<ToolLoopResult>;
 }
@@ -100,8 +100,8 @@ export function createAnthropic(config: RunConfig): AnthropicCaller {
     return concatText(msg.content);
   }
 
-  async function askJSON<T>(prompt: string, opts: AskOpts = {}): Promise<T> {
-    return parseJSON<T>(await askText(prompt, opts));
+  async function askJSON<T>(prompt: string, opts: JSONOpts = {}): Promise<T> {
+    return askJSONWithRepair<T>(askText, prompt, opts);
   }
 
   async function askWithTools(prompt: string, opts: ToolLoopOpts): Promise<ToolLoopResult> {
