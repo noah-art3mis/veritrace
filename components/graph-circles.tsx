@@ -178,51 +178,11 @@ export const circleNodeTypes: NodeTypes = {
 };
 
 // --- Detail panel ------------------------------------------------------------------------------
-// The peek-then-open surface (ADR 0003). Hover/tap shows the compact head (identity + the colour
-// spelled out in words, so it reads without seeing hue); opening adds the body. This is the
-// non-colour path that keeps the circle view usable on touch and for colourblind users.
+// Hover/tap a circle and we surface the REAL card directly — no compact preview step. The card
+// already spells out verdict/stance in words (its badge labels), so it carries the non-colour read
+// that keeps the circle view usable on touch and for colourblind users.
 
-function detailHead(node: AppNode): {
-  kicker: string;
-  colourWord: string;
-  colour: string;
-  glyph: string;
-} {
-  switch (node.type) {
-    case "source": {
-      const m = node.data.item.verdict ? VERDICT_META[node.data.item.verdict] : null;
-      return {
-        kicker: "Source",
-        colourWord: m?.label ?? "analyzing",
-        colour: m?.color ?? ACCENT,
-        glyph: m?.glyph ?? "•",
-      };
-    }
-    case "claim": {
-      const m = node.data.item.verdict ? VERDICT_META[node.data.item.verdict] : null;
-      const dropped = isRelevanceDropped(node.data.item);
-      return {
-        kicker: `Claim · ${node.data.item.id.toUpperCase()}`,
-        colourWord: dropped ? "dropped" : (m?.label ?? "analyzing"),
-        colour: m?.color ?? ACCENT,
-        glyph: dropped ? "▽" : (m?.glyph ?? "•"),
-      };
-    }
-    case "question":
-      return { kicker: "Question", colourWord: node.data.item.status, colour: ACCENT, glyph: "•" };
-    case "evidence": {
-      const s = STANCE_META[node.data.item.stance];
-      return {
-        kicker: `Evidence · ${node.data.item.domain}`,
-        colourWord: `${s.label} · ${node.data.item.reliability} reliability`,
-        colour: s.color,
-        glyph: s.glyph,
-      };
-    }
-  }
-}
-
-/* The opened panel renders the REAL card component (handle-free), for visual parity with the card
+/* The panel renders the REAL card component (handle-free), for visual parity with the card
    view (#48). The cards read InternalsContext / WithholdVerdictContext themselves, so internals and
    the withheld-verdict state carry through. Handles are off — NodeDetail isn't a node context. */
 function RealCard({ node }: { node: AppNode }) {
@@ -238,91 +198,17 @@ function RealCard({ node }: { node: AppNode }) {
   }
 }
 
-export function NodeDetail({
-  node,
-  full,
-  onOpen,
-  onClose,
-}: {
-  node: AppNode;
-  full: boolean;
-  onOpen: () => void;
-  onClose: () => void;
-}) {
-  const head = detailHead(node);
-
-  // Opened: show the actual card (#48) so the open state matches the card view exactly.
-  if (full) {
-    return (
-      <div className="flex max-w-[88vw] flex-col items-end gap-1.5">
-        <RealCard node={node} />
-        <button
-          onClick={onClose}
-          className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)] hover:text-[var(--ink-1)]"
-        >
-          close ✕
-        </button>
-      </div>
-    );
-  }
-
-  // Peek (hover / first tap): the compact identity head — the colour spelled out in words so it
-  // reads without seeing hue. A second click ("open") swaps in the real card above.
+export function NodeDetail({ node, onClose }: { node: AppNode; onClose: () => void }) {
+  // Show the actual card (#48) so the circle detail matches the card view exactly.
   return (
-    <div
-      className="w-[300px] max-w-[84vw] rounded-lg border border-[var(--line-2)] bg-[var(--panel)] p-3 shadow-xl"
-      style={{ boxShadow: `0 0 0 1px ${head.colour}22, 0 16px 36px -20px rgba(0,0,0,0.85)` }}
-    >
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-[var(--ink-3)]">
-          {head.kicker}
-        </span>
-        <span
-          className="font-mono text-[9.5px] uppercase tracking-wider"
-          style={{ color: head.colour }}
-        >
-          <span aria-hidden className="font-bold">
-            {head.glyph}
-          </span>{" "}
-          {head.colourWord}
-        </span>
-      </div>
-
-      {node.type === "source" && (
-        <p className="font-display line-clamp-3 text-[13px] leading-[1.5] text-[var(--ink-1)]">
-          {node.data.item.text}
-        </p>
-      )}
-      {node.type === "claim" && (
-        <p className="line-clamp-3 text-[12px] font-medium leading-[1.4] text-[var(--ink-1)]">
-          {node.data.item.text}
-        </p>
-      )}
-      {node.type === "question" && (
-        <p className="line-clamp-3 font-mono text-[11px] leading-[1.5] text-[var(--ink-2)]">
-          {node.data.item.text}
-        </p>
-      )}
-      {node.type === "evidence" && (
-        <span className="block truncate text-[12px] font-semibold leading-[1.35] text-[var(--ink-1)]">
-          {node.data.item.title}
-        </span>
-      )}
-
-      <div className="mt-2 flex items-center justify-end gap-2">
-        <button
-          onClick={onOpen}
-          className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--accent)] hover:underline"
-        >
-          open ↗
-        </button>
-        <button
-          onClick={onClose}
-          className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)] hover:text-[var(--ink-1)]"
-        >
-          dismiss
-        </button>
-      </div>
+    <div className="flex max-w-[88vw] flex-col items-end gap-1.5">
+      <RealCard node={node} />
+      <button
+        onClick={onClose}
+        className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)] hover:text-[var(--ink-1)]"
+      >
+        close ✕
+      </button>
     </div>
   );
 }

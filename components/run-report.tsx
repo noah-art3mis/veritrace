@@ -4,7 +4,7 @@ import type { FactGraph, Verdict } from "@/lib/graph-types";
 import { VERDICT_META } from "@/lib/visuals";
 import { graphDigest } from "@/lib/pipeline/summarize";
 
-// The post-run brief. Slides in from the left when a run finishes so the reader gets the
+// The post-run brief. Slides in from the right when a run finishes so the reader gets the
 // verdict, the support ratio, and an AI-written summary of the qualitative + quantitative
 // evidence — without panning or zooming the graph. Verdict/ratio/stats are derived locally
 // and instant; the narrative streams in from /api/summary.
@@ -107,8 +107,8 @@ export default function RunReport({
   return (
     <aside
       aria-hidden={!open}
-      className="absolute inset-y-0 left-0 z-20 flex w-[400px] max-w-[88vw] flex-col border-r border-[var(--line)] bg-[var(--bg-2)]/95 shadow-2xl backdrop-blur transition-transform duration-300 ease-out"
-      style={{ transform: open ? "translateX(0)" : "translateX(-100%)" }}
+      className="absolute inset-y-0 right-0 z-20 flex w-[400px] max-w-[88vw] flex-col border-l border-[var(--line)] bg-[var(--bg-2)]/95 shadow-2xl backdrop-blur transition-transform duration-300 ease-out"
+      style={{ transform: open ? "translateX(0)" : "translateX(100%)" }}
     >
       {/* Header — verdict headline + close. */}
       <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
