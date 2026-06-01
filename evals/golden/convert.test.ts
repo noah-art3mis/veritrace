@@ -3,7 +3,14 @@
 // no dataset download needed, runs in the existing `npm test`.
 
 import { describe, it, expect } from "vitest";
-import { fromAveritec, fromXfactRow, toISODate, orgFromHost, hostOf } from "./convert.mjs";
+import {
+  fromAveritec,
+  fromXfactRow,
+  toISODate,
+  orgFromHost,
+  hostOf,
+  unwrapArchive,
+} from "./convert.mjs";
 
 /** Importers return `GoldenClaim | null` (null = skip). Assert present, then narrow. */
 function present<T>(v: T | null): T {
@@ -61,6 +68,20 @@ describe("fromAveritec", () => {
   it("skips unlabelled records (the AVeriTeC test split)", () => {
     expect(fromAveritec({ ...rec, label: undefined })).toBeNull();
   });
+
+  it("unwraps a Wayback-archived article so the org is the real publisher, not archive.org", () => {
+    // The real AVeriTeC dev split wraps every fact_checking_article in a web.archive.org
+    // snapshot. Without unwrapping, every record's org collapses to "web.archive.org" and the
+    // --site snopes/fullfact filters never match.
+    const archived = {
+      ...rec,
+      fact_checking_article:
+        "https://web.archive.org/web/20201130144023/https://www.snopes.com/fact-check/unemployment/",
+    };
+    const g = present(fromAveritec(archived));
+    expect(g.source.org).toBe("snopes");
+    expect(g.source.url).toBe("https://www.snopes.com/fact-check/unemployment/");
+  });
 });
 
 describe("fromXfactRow", () => {
@@ -106,5 +127,18 @@ describe("helpers", () => {
     expect(hostOf("https://www.FullFact.org/x")).toBe("fullfact.org");
     expect(orgFromHost("fullfact.org")).toBe("fullfact");
     expect(orgFromHost("example.com")).toBe("example.com");
+  });
+
+  it("peels a Wayback wrapper and leaves bare URLs untouched", () => {
+    expect(
+      unwrapArchive("https://web.archive.org/web/20201130144023/https://www.snopes.com/x/"),
+    ).toBe("https://www.snopes.com/x/");
+    // Modifier suffix on the timestamp (e.g. im_, id_) must also be tolerated.
+    expect(
+      unwrapArchive("https://web.archive.org/web/20210629013122id_/https://fullfact.org/y"),
+    ).toBe("https://fullfact.org/y");
+    expect(unwrapArchive("https://www.snopes.com/already-bare/")).toBe(
+      "https://www.snopes.com/already-bare/",
+    );
   });
 });

@@ -47,6 +47,16 @@ export const XFACT_LABELS = {
 
 // ---- Helpers ----------------------------------------------------------------------------
 
+/** Peel a Wayback Machine wrapper off a URL. AVeriTeC's `fact_checking_article` is almost
+ *  always a snapshot like `https://web.archive.org/web/<timestamp>/https://real.host/...`
+ *  (the timestamp may carry a modifier suffix, e.g. `…id_`). Without peeling it, EVERY
+ *  record's host is archive.org and org derivation / `--site` filtering break. Returns the
+ *  inner URL when wrapped, otherwise the input unchanged. */
+export function unwrapArchive(url) {
+  const m = String(url || "").match(/^https?:\/\/web\.archive\.org\/web\/[^/]+\/(https?:\/\/.+)$/);
+  return m ? m[1] : url || "";
+}
+
 /** Lowercase host of a URL, sans leading "www.". "" if unparseable. */
 export function hostOf(url) {
   try {
@@ -103,7 +113,7 @@ export function fromAveritec(rec, { split = "eval", index = 0 } = {}) {
   const verdict = AVERITEC_LABELS[rec.label];
   if (!verdict) return null; // unlabelled (test split) or unknown label → skip
 
-  const articleUrl = rec.fact_checking_article || rec.original_claim_url || "";
+  const articleUrl = unwrapArchive(rec.fact_checking_article || rec.original_claim_url || "");
   const org = orgFromHost(hostOf(articleUrl));
 
   const questions = Array.isArray(rec.questions)
