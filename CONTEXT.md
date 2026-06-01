@@ -23,6 +23,10 @@ _Avoid_: query (reserve for the search-API string), prompt
 A retrieved primary source (or an extracted passage from one) that answers a Question and thereby supports, refutes, or contextualizes a Claim. Carries provenance (who/when), a reliability signal, and a stance.
 _Avoid_: source (use for the document, not the retrieved item), result
 
+**Deciding evidence**:
+Evidence strong enough to actually move a Claim's Verdict — **high or medium reliability with sufficient stance-confidence**. Low-reliability or low-confidence Evidence is still shown, but can only *contextualize*: it never establishes or flips a Verdict. The minority of Evidence that does the load-bearing work behind a Verdict — and therefore the first thing a Fact-checker should scrutinise.
+_Avoid_: strong evidence (vague), relevant evidence, confident
+
 **Verdict**:
 The veracity label assigned to a Claim/Sub-claim, from the AVeriTeC 4-way set: **Supported / Refuted / Conflicting-or-Cherry-picked / Not-Enough-Evidence**. Never bare true/false. Carries uncertainty expressed as **source-reliability / evidence-quality**, not a bare confidence %. Advisory only — the Fact-checker decides.
 _Avoid_: result, answer, score, true/false
