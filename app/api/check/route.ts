@@ -1,6 +1,7 @@
 import { streamPipeline } from "@/lib/pipeline/stream";
 import { createAnthropic } from "@/lib/anthropic";
 import { createExaSearch } from "@/lib/exa";
+import { createFactCheckLookup } from "@/lib/factcheck";
 import { parseConfig } from "@/lib/run-config";
 
 // The pipeline calls Anthropic + Exa, so it must run on the Node runtime and is
@@ -42,6 +43,12 @@ export async function POST(request: Request) {
       }),
       maxClaims: config.maxClaims,
       maxQuestions: config.maxQuestions,
+      // Opt-in fact-check short-circuit. Built only when the flag is on, so leaving it off
+      // (the default) means `factCheck` is absent and the pipeline runs fully de novo. A
+      // flag-on-but-no-key run throws here and surfaces as a 400, like the other keys.
+      ...(config.factCheckShortCircuit
+        ? { factCheck: createFactCheckLookup({ apiKey: config.googleFactCheckKey }) }
+        : {}),
     };
   } catch (err) {
     return Response.json(

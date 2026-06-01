@@ -38,8 +38,12 @@ export interface Settings {
   category: ExaCategory | "";
   /** Prefer freshly-crawled content over Exa's cache — fresher for breaking news, but slower. */
   preferFresh: boolean;
+  /** Opt-in: short-circuit a claim with an existing Google Fact Check verdict, skipping retrieval. */
+  factCheckShortCircuit: boolean;
   anthropicKey: string;
   exaKey: string;
+  /** User-supplied Google Fact Check API key; "" = use the server's GOOGLE_FACT_CHECK_API_KEY. */
+  googleFactCheckKey: string;
   /** Display-only: reveal the pipeline's hidden retrieval internals in the graph. */
   showInternals: boolean;
   /** Display-only: show the graph's minimap (the navigator thumbnail). */
@@ -57,8 +61,10 @@ export const DEFAULT_SETTINGS: Settings = {
   deepSearch: false,
   category: "",
   preferFresh: false,
+  factCheckShortCircuit: false,
   anthropicKey: "",
   exaKey: "",
+  googleFactCheckKey: "",
   showInternals: false,
   showMinimap: true,
 };
@@ -282,6 +288,29 @@ export function SettingsPanel({
         </span>
       </div>
 
+      {/* Fact-check short-circuit — opt-in; skips retrieval when a published verdict already exists */}
+      <div className="flex flex-col gap-1.5">
+        <label className={labelCls}>Fact-check short-circuit</label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={settings.factCheckShortCircuit}
+          onClick={() => set("factCheckShortCircuit", !settings.factCheckShortCircuit)}
+          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
+        >
+          <span
+            className="h-2.5 w-2.5 rounded-full transition-colors"
+            style={{
+              background: settings.factCheckShortCircuit ? "var(--accent)" : "var(--line-2)",
+            }}
+          />
+          {settings.factCheckShortCircuit ? "On" : "Off"}
+        </button>
+        <span className="font-mono text-[9px] text-[var(--ink-4)]">
+          skip retrieval when Google Fact Check already has a verdict · off = full de-novo run
+        </span>
+      </div>
+
       {/* Extended thinking */}
       <div className="flex flex-col gap-1.5">
         <label className={labelCls}>Extended thinking</label>
@@ -363,6 +392,15 @@ export function SettingsPanel({
             onChange={(e) => set("exaKey", e.target.value)}
             placeholder="EXA_API_KEY · blank uses server default"
             className={fieldCls}
+          />
+          <input
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            value={settings.googleFactCheckKey}
+            onChange={(e) => set("googleFactCheckKey", e.target.value)}
+            placeholder="GOOGLE_FACT_CHECK_API_KEY · only used when short-circuit is on"
+            className={`${fieldCls} sm:col-span-2`}
           />
         </div>
         <span className="font-mono text-[9px] text-[var(--ink-4)]">

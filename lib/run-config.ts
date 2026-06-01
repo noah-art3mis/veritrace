@@ -83,10 +83,20 @@ export interface RunConfig {
   category: ExaCategory | "";
   /** Prefer freshly-crawled content over Exa's cache — fresher for breaking news, but slower. */
   preferFresh: boolean;
+  /**
+   * Opt-in short-circuit: before any question generation or web retrieval, ask the Google
+   * Fact Check Tools API whether a known fact-checker already adjudicated each claim and, on
+   * a confident hit, resolve it from that finding — skipping the expensive de-novo path.
+   * Default FALSE: VERITRACE is de-novo by design (lib/exa.ts), and turning this off is how
+   * you test the full pipeline without short-circuiting.
+   */
+  factCheckShortCircuit: boolean;
   /** User-supplied key; blank ⇒ the server falls back to its ANTHROPIC_API_KEY env. */
   anthropicKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its EXA_API_KEY env. */
   exaKey?: string;
+  /** User-supplied key; blank ⇒ the server falls back to its GOOGLE_FACT_CHECK_API_KEY env. */
+  googleFactCheckKey?: string;
 }
 
 // Default to temperature 0 — deterministic output is the whole point of a
@@ -102,6 +112,7 @@ export const DEFAULT_CONFIG: RunConfig = {
   deepSearch: false,
   category: "",
   preferFresh: false,
+  factCheckShortCircuit: false,
 };
 
 function isModelId(value: unknown): value is ModelId {
@@ -199,7 +210,9 @@ export function parseConfig(input: unknown): RunConfig {
     deepSearch: Boolean(raw.deepSearch),
     category,
     preferFresh: Boolean(raw.preferFresh),
+    factCheckShortCircuit: Boolean(raw.factCheckShortCircuit),
     anthropicKey: cleanKey(raw.anthropicKey),
     exaKey: cleanKey(raw.exaKey),
+    googleFactCheckKey: cleanKey(raw.googleFactCheckKey),
   };
 }
