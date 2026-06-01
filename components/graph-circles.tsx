@@ -181,28 +181,41 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function detailHead(node: AppNode): { kicker: string; colourWord: string; colour: string } {
+function detailHead(node: AppNode): {
+  kicker: string;
+  colourWord: string;
+  colour: string;
+  glyph: string;
+} {
   switch (node.type) {
     case "source": {
       const m = node.data.item.verdict ? VERDICT_META[node.data.item.verdict] : null;
-      return { kicker: "Source", colourWord: m?.label ?? "analyzing", colour: m?.color ?? ACCENT };
+      return {
+        kicker: "Source",
+        colourWord: m?.label ?? "analyzing",
+        colour: m?.color ?? ACCENT,
+        glyph: m?.glyph ?? "•",
+      };
     }
     case "claim": {
       const m = node.data.item.verdict ? VERDICT_META[node.data.item.verdict] : null;
+      const dropped = isRelevanceDropped(node.data.item);
       return {
         kicker: `Claim · ${node.data.item.id.toUpperCase()}`,
-        colourWord: isRelevanceDropped(node.data.item) ? "dropped" : (m?.label ?? "analyzing"),
+        colourWord: dropped ? "dropped" : (m?.label ?? "analyzing"),
         colour: m?.color ?? ACCENT,
+        glyph: dropped ? "▽" : (m?.glyph ?? "•"),
       };
     }
     case "question":
-      return { kicker: "Question", colourWord: node.data.item.status, colour: ACCENT };
+      return { kicker: "Question", colourWord: node.data.item.status, colour: ACCENT, glyph: "•" };
     case "evidence": {
       const s = STANCE_META[node.data.item.stance];
       return {
         kicker: `Evidence · ${node.data.item.domain}`,
         colourWord: `${s.label} · ${node.data.item.reliability} reliability`,
         colour: s.color,
+        glyph: s.glyph,
       };
     }
   }
@@ -236,7 +249,10 @@ export function NodeDetail({
           className="font-mono text-[9.5px] uppercase tracking-wider"
           style={{ color: head.colour }}
         >
-          ● {head.colourWord}
+          <span aria-hidden className="font-bold">
+            {head.glyph}
+          </span>{" "}
+          {head.colourWord}
         </span>
       </div>
 

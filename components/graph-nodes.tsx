@@ -65,7 +65,14 @@ function VerdictBadge({ verdict }: { verdict: Verdict | null }) {
       className="inline-flex items-center gap-1.5 rounded-[5px] border px-2 py-[3px]"
       style={{ borderColor: `${m.color}55`, background: m.soft, boxShadow: `0 0 14px ${m.glow}` }}
     >
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.color }} />
+      {/* glyph + word are both non-colour cues, so the verdict reads without seeing hue (#8) */}
+      <span
+        aria-hidden
+        className="font-mono text-[10px] font-bold leading-none"
+        style={{ color: m.color }}
+      >
+        {m.glyph}
+      </span>
       <span className="font-display text-[12.5px] italic leading-none" style={{ color: m.color }}>
         {m.label}
       </span>

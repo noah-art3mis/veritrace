@@ -17,6 +17,7 @@ import { circleNodeTypes, NodeDetail } from "./graph-circles";
 import { useGraphFlow } from "./use-graph-flow";
 import { useRadialFlow } from "./use-radial-flow";
 import { useIsMobile } from "./use-is-mobile";
+import { GraphLegend } from "./graph-legend";
 import type { AppNode } from "@/lib/graph-to-flow";
 import type { FactGraph } from "@/lib/graph-types";
 
@@ -125,29 +126,32 @@ export default function FactGraphCanvas({
             className="!overflow-hidden !rounded-md !border !border-[var(--line)] !shadow-xl [&_button]:!border-[var(--line)] [&_button]:!bg-[var(--panel-2)] [&_button]:!fill-[var(--ink-2)] [&_button:hover]:!bg-[var(--line)]"
           />
 
-          <Panel position="top-right" className="!m-2 flex items-center gap-2">
-            {suggestRadial && (
+          <Panel position="top-right" className="!m-2 flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              {suggestRadial && (
+                <button
+                  onClick={() => {
+                    setView("radial");
+                    setSuggested(true);
+                  }}
+                  className="rounded-md border border-[var(--accent)]/50 bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--accent)] shadow-lg hover:bg-[var(--line)]"
+                >
+                  ◎ big graph — try radial
+                </button>
+              )}
               <button
                 onClick={() => {
-                  setView("radial");
+                  setView((v) => (v === "radial" ? "cards" : "radial"));
                   setSuggested(true);
+                  setPinnedId(null);
+                  setOpenId(null);
                 }}
-                className="rounded-md border border-[var(--accent)]/50 bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--accent)] shadow-lg hover:bg-[var(--line)]"
+                className="rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--ink-2)] shadow-lg hover:bg-[var(--line)]"
               >
-                ◎ big graph — try radial
+                {isRadial ? "▦ Cards" : "◎ Radial"}
               </button>
-            )}
-            <button
-              onClick={() => {
-                setView((v) => (v === "radial" ? "cards" : "radial"));
-                setSuggested(true);
-                setPinnedId(null);
-                setOpenId(null);
-              }}
-              className="rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--ink-2)] shadow-lg hover:bg-[var(--line)]"
-            >
-              {isRadial ? "▦ Cards" : "◎ Radial"}
-            </button>
+            </div>
+            <GraphLegend />
           </Panel>
 
           {peekNode && !openNode && (
