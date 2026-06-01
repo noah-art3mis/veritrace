@@ -30,28 +30,33 @@ export function createReasoner(config: RunConfig): ReasoningProvider {
       ? createAnthropic(config)
       : createOpenAICompatible(config, {
           baseURL: process.env.OPENAI_COMPAT_BASE_URL || info.baseUrl || GEMINI_BASE_URL,
-          apiKey: openAICompatKey(info.baseUrl),
+          apiKey: openAICompatKey(info.baseUrl, config),
           model: config.model,
         });
   return throttleProvider(provider, llmLimiter);
 }
 
-// The env key for an OpenAI-compatible backend, chosen by its endpoint. Pure (takes the env in) so
-// the routing is unit-testable without mutating process.env. OPENAI_COMPAT_API_KEY is a universal
-// override for custom backends (Groq / OpenRouter / a local server). A new backend must add its
-// branch here, or its base URL falls through to the Gemini branch and silently grabs the wrong key.
+/** The user-supplied keys that can stand in for an OpenAI-compatible backend's env key. */
+export type ProviderKeys = Pick<RunConfig, "openaiKey" | "geminiKey" | "deepseekKey">;
+
+// The key for an OpenAI-compatible backend, chosen by its endpoint. Pure (takes config + env in) so
+// the routing is unit-testable without mutating process.env. Precedence: the caller's per-backend
+// key from the settings panel wins (BYO-key runs), then OPENAI_COMPAT_API_KEY — a universal env
+// override for custom backends (Groq / OpenRouter / a local server) — then the per-backend env key.
+// A new backend must add its branch here, or its base URL falls through to the Gemini branch and
+// silently grabs the wrong key.
 export function openAICompatKey(
   baseUrl: string | undefined,
+  config: ProviderKeys = {},
   env: Record<string, string | undefined> = process.env,
 ): string {
-  if (env.OPENAI_COMPAT_API_KEY) return env.OPENAI_COMPAT_API_KEY;
   const route =
     baseUrl === OPENAI_BASE_URL
-      ? { envVar: "OPENAI_API_KEY", name: "OpenAI" }
+      ? { userKey: config.openaiKey, envVar: "OPENAI_API_KEY", name: "OpenAI" }
       : baseUrl === DEEPSEEK_BASE_URL
-        ? { envVar: "DEEPSEEK_API_KEY", name: "DeepSeek" }
-        : { envVar: "GEMINI_API_KEY", name: "Gemini" };
-  const key = env[route.envVar];
+        ? { userKey: config.deepseekKey, envVar: "DEEPSEEK_API_KEY", name: "DeepSeek" }
+        : { userKey: config.geminiKey, envVar: "GEMINI_API_KEY", name: "Gemini" };
+  const key = route.userKey || env.OPENAI_COMPAT_API_KEY || env[route.envVar];
   if (!key)
     throw new Error(`${route.envVar} is not set (required for the selected ${route.name} model).`);
   return key;

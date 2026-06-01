@@ -129,8 +129,14 @@ export interface RunConfig {
    * path (ADR 0005); this is the heavier alternative to RRF (#56). Off / no key ⇒ no re-rank.
    */
   rerank: boolean;
-  /** User-supplied key; blank ⇒ the server falls back to its ANTHROPIC_API_KEY env. */
+  /** User-supplied key for the Anthropic backend; blank ⇒ the server's ANTHROPIC_API_KEY env. */
   anthropicKey?: string;
+  /** User-supplied key for the OpenAI backend; blank ⇒ the server's OPENAI_API_KEY env. */
+  openaiKey?: string;
+  /** User-supplied key for the Gemini backend; blank ⇒ the server's GEMINI_API_KEY env. */
+  geminiKey?: string;
+  /** User-supplied key for the DeepSeek backend; blank ⇒ the server's DEEPSEEK_API_KEY env. */
+  deepseekKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its EXA_API_KEY env. */
   exaKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its GOOGLE_FACT_CHECK_API_KEY env. */
@@ -254,6 +260,9 @@ export function parseConfig(input: unknown): RunConfig {
     factCheckShortCircuit: Boolean(raw.factCheckShortCircuit),
     rerank: Boolean(raw.rerank),
     anthropicKey: cleanKey(raw.anthropicKey),
+    openaiKey: cleanKey(raw.openaiKey),
+    geminiKey: cleanKey(raw.geminiKey),
+    deepseekKey: cleanKey(raw.deepseekKey),
     exaKey: cleanKey(raw.exaKey),
     googleFactCheckKey: cleanKey(raw.googleFactCheckKey),
     cohereKey: cleanKey(raw.cohereKey),

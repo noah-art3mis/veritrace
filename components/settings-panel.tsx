@@ -42,10 +42,16 @@ export interface Settings {
   preferFresh: boolean;
   /** Opt-in: short-circuit a claim with an existing Google Fact Check verdict, skipping retrieval. */
   factCheckShortCircuit: boolean;
+  /** Per-backend model keys; "" = use the server's env key for that provider. */
   anthropicKey: string;
+  openaiKey: string;
+  geminiKey: string;
+  deepseekKey: string;
   exaKey: string;
   /** User-supplied Google Fact Check API key; "" = use the server's GOOGLE_FACT_CHECK_API_KEY. */
   googleFactCheckKey: string;
+  /** User-supplied Cohere key for the opt-in embedding re-rank; "" = the server's COHERE_API_KEY. */
+  cohereKey: string;
   /**
    * Display-only: hide the machine's aggregate Verdict (Source card badge + support ratio,
    * Investigation brief verdict + narrative) so the Fact-checker reads the evidence and
@@ -70,8 +76,12 @@ export const DEFAULT_SETTINGS: Settings = {
   preferFresh: false,
   factCheckShortCircuit: false,
   anthropicKey: "",
+  openaiKey: "",
+  geminiKey: "",
+  deepseekKey: "",
   exaKey: "",
   googleFactCheckKey: "",
+  cohereKey: "",
   withholdVerdict: false,
   showMinimap: true,
 };
@@ -447,6 +457,33 @@ export function SettingsPanel({
                   type="password"
                   autoComplete="off"
                   spellCheck={false}
+                  value={settings.openaiKey}
+                  onChange={(e) => set("openaiKey", e.target.value)}
+                  placeholder="OPENAI_API_KEY · blank uses server default"
+                  className={fieldCls}
+                />
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={settings.geminiKey}
+                  onChange={(e) => set("geminiKey", e.target.value)}
+                  placeholder="GEMINI_API_KEY · blank uses server default"
+                  className={fieldCls}
+                />
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={settings.deepseekKey}
+                  onChange={(e) => set("deepseekKey", e.target.value)}
+                  placeholder="DEEPSEEK_API_KEY · blank uses server default"
+                  className={fieldCls}
+                />
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
                   value={settings.exaKey}
                   onChange={(e) => set("exaKey", e.target.value)}
                   placeholder="EXA_API_KEY · blank uses server default"
@@ -459,6 +496,15 @@ export function SettingsPanel({
                   value={settings.googleFactCheckKey}
                   onChange={(e) => set("googleFactCheckKey", e.target.value)}
                   placeholder="GOOGLE_FACT_CHECK_API_KEY · blank uses server default"
+                  className={fieldCls}
+                />
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={settings.cohereKey}
+                  onChange={(e) => set("cohereKey", e.target.value)}
+                  placeholder="COHERE_API_KEY · blank uses server default"
                   className={fieldCls}
                 />
               </div>
