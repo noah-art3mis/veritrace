@@ -130,6 +130,34 @@ export default function FactGraphCanvas({
             />
           )}
 
+          {/* Reading-order orientation for the left-to-right card flow (#25): name the four lanes
+              so SOURCE → CLAIMS → QUESTIONS → EVIDENCE is explicit. Cards view only (the radial
+              view has no lanes); hidden on mobile where horizontal space is scarce. */}
+          {!isRadial && !isMobile && (
+            <Panel position="top-left" className="!m-2">
+              <div className="flex items-center gap-1.5 rounded-md border border-[var(--line)] bg-[var(--panel-2)]/85 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em] shadow-lg backdrop-blur">
+                {(
+                  [
+                    ["source", "Source"],
+                    ["claim", "Claims"],
+                    ["question", "Questions"],
+                    ["evidence", "Evidence"],
+                  ] as const
+                ).map(([type, label], i) => (
+                  <span key={type} className="flex items-center gap-1.5">
+                    {i > 0 && <span className="text-[var(--ink-4)]">→</span>}
+                    <span
+                      aria-hidden
+                      className="inline-block h-1.5 w-1.5 rounded-full"
+                      style={{ background: MINIMAP_COLOR[type] }}
+                    />
+                    <span className="text-[var(--ink-3)]">{label}</span>
+                  </span>
+                ))}
+              </div>
+            </Panel>
+          )}
+
           <Panel position="top-right" className="!m-2 flex flex-col items-end gap-2">
             <div className="flex items-center gap-2">
               {suggestRadial && (
