@@ -8,6 +8,7 @@
 // separate provider switch.
 export const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
 export const OPENAI_BASE_URL = "https://api.openai.com/v1";
+export const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
 export type Provider = "anthropic" | "openai-compatible";
 
@@ -36,6 +37,8 @@ export const MODELS = {
   "gpt-5.4-nano": { label: "GPT-5.4 nano", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.2, outputCost: 1.25, noTemperature: true }, // prettier-ignore
   "gemini-2.5-flash": { label: "Gemini 2.5 Flash", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.3, outputCost: 2.5 }, // prettier-ignore
   "gemini-2.5-flash-lite": { label: "Gemini 2.5 Flash-Lite", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.1, outputCost: 0.4 }, // prettier-ignore
+  "deepseek-v4-flash": { label: "DeepSeek V4 Flash", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.14, outputCost: 0.28 }, // prettier-ignore
+  "deepseek-v4-pro": { label: "DeepSeek V4 Pro", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.435, outputCost: 0.87 }, // prettier-ignore
 } as const satisfies Record<string, ModelInfo>;
 
 export type ModelId = keyof typeof MODELS;
