@@ -121,10 +121,14 @@ export default function FactGraphCanvas({
         >
           <FitOnChange dep={`${view}:${nodes.length}`} />
           <Background variant={BackgroundVariant.Cross} gap={36} size={4} color="#18202c" />
-          <Controls
-            showInteractive={false}
-            className="!overflow-hidden !rounded-md !border !border-[var(--line)] !shadow-xl [&_button]:!border-[var(--line)] [&_button]:!bg-[var(--panel-2)] [&_button]:!fill-[var(--ink-2)] [&_button:hover]:!bg-[var(--line)]"
-          />
+          {/* The +/- zoom controls are desktop affordances; on touch you pinch-zoom, so they just
+              add clutter on the scarce mobile first screen (#27). Hidden there, like the minimap. */}
+          {!isMobile && (
+            <Controls
+              showInteractive={false}
+              className="!overflow-hidden !rounded-md !border !border-[var(--line)] !shadow-xl [&_button]:!border-[var(--line)] [&_button]:!bg-[var(--panel-2)] [&_button]:!fill-[var(--ink-2)] [&_button:hover]:!bg-[var(--line)]"
+            />
+          )}
 
           <Panel position="top-right" className="!m-2 flex flex-col items-end gap-2">
             <div className="flex items-center gap-2">
