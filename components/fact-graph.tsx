@@ -1,18 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
   Controls,
   MiniMap,
+  Panel,
   useReactFlow,
   type Node,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { nodeTypes, InternalsContext } from "./graph-nodes";
+import { circleNodeTypes, NodeDetail } from "./graph-circles";
 import { useGraphFlow } from "./use-graph-flow";
+import { useRadialFlow } from "./use-radial-flow";
+import type { AppNode } from "@/lib/graph-to-flow";
 import type { FactGraph } from "@/lib/graph-types";
 
 const MINIMAP_COLOR: Record<string, string> = {
@@ -26,14 +30,19 @@ const MINIMAP_COLOR: Record<string, string> = {
 // thumbnail is an unreadable speckle anyway — so we drop it rather than re-render it per tick.
 const MINIMAP_MAX_NODES = 220;
 
-// Keep the whole graph in frame as nodes stream in. Trailing-debounced: a burst of evidence
-// landing together triggers ONE fitView after it settles, not an overlapping animation per node.
-function FitOnGrow({ count }: { count: number }) {
+// Past this many nodes the card graph gets hard to read; suggest the radial overview (ADR 0003).
+const RADIAL_SUGGEST_NODES = 60;
+
+type ViewMode = "cards" | "radial";
+
+// Keep the whole graph in frame as nodes stream in (and when the view mode changes). Trailing-
+// debounced: a burst of evidence landing together triggers ONE fitView after it settles.
+function FitOnChange({ dep }: { dep: unknown }) {
   const { fitView } = useReactFlow();
   useEffect(() => {
     const t = setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 300);
     return () => clearTimeout(t);
-  }, [count, fitView]);
+  }, [dep, fitView]);
   return null;
 }
 
@@ -46,30 +55,105 @@ export default function FactGraphCanvas({
   showInternals?: boolean;
   showMinimap?: boolean;
 }) {
-  // Cached derive: re-runs dagre only on topology changes and keeps stable node identities so
-  // React Flow re-renders just the cards that changed (see useGraphFlow).
-  const { nodes, edges } = useGraphFlow(graph);
+  const [view, setView] = useState<ViewMode>("cards");
+  // Peek-then-open (ADR 0003): hover/first-tap peeks (pinned), second click opens, pane clears.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const card = useGraphFlow(graph);
+  const radial = useRadialFlow(graph);
+  const isRadial = view === "radial";
+  const { nodes, edges } = isRadial ? radial : card;
+
+  const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n as AppNode])), [nodes]);
+  const peekNode = isRadial ? byId.get(hoveredId ?? pinnedId ?? "") : undefined;
+  const openNode = isRadial ? byId.get(openId ?? "") : undefined;
+
+  // Suggest the radial overview once the card graph crosses the legibility threshold (once).
+  const [suggested, setSuggested] = useState(false);
+  const suggestRadial = view === "cards" && !suggested && nodes.length > RADIAL_SUGGEST_NODES;
 
   return (
     <InternalsContext.Provider value={showInternals}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        nodeTypes={nodeTypes}
+        nodeTypes={isRadial ? circleNodeTypes : nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.15 }}
         minZoom={0.2}
         maxZoom={1.5}
         onlyRenderVisibleElements
+        nodesDraggable={!isRadial}
         proOptions={{ hideAttribution: true }}
         className="bg-transparent"
+        onNodeMouseEnter={(_, n) => isRadial && setHoveredId(n.id)}
+        onNodeMouseLeave={() => isRadial && setHoveredId(null)}
+        onNodeClick={(_, n) => {
+          if (!isRadial) return;
+          setPinnedId((prev) =>
+            prev === n.id ? (setOpenId(n.id), prev) : (setOpenId(null), n.id),
+          );
+        }}
+        onPaneClick={() => {
+          setPinnedId(null);
+          setOpenId(null);
+          setHoveredId(null);
+        }}
       >
-        <FitOnGrow count={nodes.length} />
+        <FitOnChange dep={`${view}:${nodes.length}`} />
         <Background variant={BackgroundVariant.Cross} gap={36} size={4} color="#18202c" />
         <Controls
           showInteractive={false}
           className="!overflow-hidden !rounded-md !border !border-[var(--line)] !shadow-xl [&_button]:!border-[var(--line)] [&_button]:!bg-[var(--panel-2)] [&_button]:!fill-[var(--ink-2)] [&_button:hover]:!bg-[var(--line)]"
         />
+
+        <Panel position="top-right" className="!m-2 flex items-center gap-2">
+          {suggestRadial && (
+            <button
+              onClick={() => {
+                setView("radial");
+                setSuggested(true);
+              }}
+              className="rounded-md border border-[var(--accent)]/50 bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--accent)] shadow-lg hover:bg-[var(--line)]"
+            >
+              ◎ big graph — try radial
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setView((v) => (v === "radial" ? "cards" : "radial"));
+              setSuggested(true);
+              setPinnedId(null);
+              setOpenId(null);
+            }}
+            className="rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--ink-2)] shadow-lg hover:bg-[var(--line)]"
+          >
+            {isRadial ? "▦ Cards" : "◎ Radial"}
+          </button>
+        </Panel>
+
+        {peekNode && !openNode && (
+          <Panel position="bottom-center" className="!mb-3">
+            <NodeDetail
+              node={peekNode}
+              full={false}
+              onOpen={() => setOpenId(peekNode.id)}
+              onClose={() => {
+                setPinnedId(null);
+                setHoveredId(null);
+              }}
+            />
+          </Panel>
+        )}
+
+        {openNode && (
+          <Panel position="top-center" className="!mt-3">
+            <NodeDetail node={openNode} full onOpen={() => {}} onClose={() => setOpenId(null)} />
+          </Panel>
+        )}
+
         {showMinimap && nodes.length <= MINIMAP_MAX_NODES && (
           <MiniMap
             pannable

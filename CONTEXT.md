@@ -23,6 +23,10 @@ _Avoid_: query (reserve for the search-API string), prompt
 A retrieved primary source (or an extracted passage from one) that answers a Question and thereby supports, refutes, or contextualizes a Claim. Carries provenance (who/when), a reliability signal, and a stance.
 _Avoid_: source (use for the document, not the retrieved item), result
 
+**Deciding evidence**:
+Evidence strong enough to actually move a Claim's Verdict — **high or medium reliability with sufficient stance-confidence**. Low-reliability or low-confidence Evidence is still shown, but can only _contextualize_: it never establishes or flips a Verdict. The minority of Evidence that does the load-bearing work behind a Verdict — and therefore the first thing a Fact-checker should scrutinise.
+_Avoid_: strong evidence (vague), relevant evidence, confident
+
 **Verdict**:
 The veracity label assigned to a Claim/Sub-claim, from the AVeriTeC 4-way set: **Supported / Refuted / Conflicting-or-Cherry-picked / Not-Enough-Evidence**. Never bare true/false. Carries uncertainty expressed as **source-reliability / evidence-quality**, not a bare confidence %. Advisory only — the Fact-checker decides.
 _Avoid_: result, answer, score, true/false
@@ -52,6 +56,10 @@ _Avoid_: user, reader, consumer
 A post-run summary panel that auto-opens (left slide-in) when a run resolves: the Source-text Verdict, the support ratio, and an AI-generated narrative summary of the run. An **advisory legibility aid** — it lets the Fact-checker get the gist without panning/zooming the Evidence graph. Explicitly secondary to the graph (which remains _the_ explanation), and it summarizes only what the graph already contains.
 _Avoid_: report, verdict (the brief restates the graph's Verdict, it does not author one), explanation (the graph is the explanation)
 
+**Constellation view**:
+An **additive, radial overview rendering** of the Evidence graph — every node a colour-coded circle, detail hidden until the Fact-checker interacts — for reading the _shape_ of a large investigation at a glance. A second rendering of the same four layers, **not** a new graph. Secondary to the default card rendering, which remains _the_ explanation: a circle is a way _into_ a node (click opens its card), never a replacement for it. Earns its place only when the card graph gets too big to read.
+_Avoid_: replacing the Evidence graph; "the graph" (overloaded — that's the card rendering); network/force graph (the layers are preserved, not dissolved into a blob)
+
 ## Relationships
 
 The graph is 4 layers: **Source text → Claims → Questions → Evidence**.
@@ -66,6 +74,7 @@ The graph is 4 layers: **Source text → Claims → Questions → Evidence**.
 ## Flagged ambiguities
 
 - "Source" was used for both the input document and a retrieved evidence item — resolved: the input is the **document**; a retrieved item is **Evidence**.
+- OPEN (#2): an **Answer layer** — explicit candidate answers per Question, each owning its supporting Evidence — would make the graph **5 deep**, in direct tension with the retired-Sub-claim rule ("do not reintroduce… 5 deep and illegible"). Whether it's viable hinges on the radial **Constellation view** making 5 rings legible where 5 stacked card-layers are not; the two are coupled.
 - ~~OPEN: the human's role.~~ **RESOLVED:** VERITRACE is an _observability workbench_ for professional Fact-checkers. The AI does the analysis; the graph makes it granularly observable; the Fact-checker's professional judgment is final. The model's Verdict is advisory. "Read-only" ≠ "human can't decide" — authority lives in the journalist, not a UI button. Recompute-on-input is a stretch.
 
 ## Decisions so far
@@ -88,4 +97,5 @@ The graph is 4 layers: **Source text → Claims → Questions → Evidence**.
 - **Out of scope for the build**: academic-integrity module (wrong audience). Pixel/provenance handling (image-or-video ingest + a hosted AI-media detector, the slop atom) is a **deferred stretch** — add after the core is solid if time allows; it's the honest path to checking provenance/synthetic-media claims later.
 - **Investigation brief (post-run summary)**: a left-side panel auto-opens when a run resolves, showing the Source-text Verdict, the support ratio, and an _AI-generated narrative summary_. This is a deliberate, bounded exception to "explainability = the process, not a post-hoc justification": the summary is an **advisory legibility aid** (so the Fact-checker gets the gist without panning/zooming the graph), explicitly secondary to the Evidence graph, which remains _the_ explanation. It summarizes only the digest already in the graph — it never introduces facts or a Verdict the graph doesn't show.
 - **Run legibility caps (configurable)**: the graph grows as Claims × Questions × Evidence, so all three multipliers are user-set caps surfaced in the settings panel (claims, questions per claim, sources per search; each 1–10). Defaults stay low for a legible first run; raising them trades density/cost for thoroughness.
+- **Constellation view (radial overview)**: an additive radial rendering of the Evidence graph for big investigations — circles on concentric layer-rings, leaf-weighted wedges, detail on peek/tap, cards still the default. Secondary to the card graph, never a replacement. Full design (geometry, encodings, interaction, streaming, implementation) in **ADR 0003**.
 - **Silent limits catalogue**: many other values bound what gets retrieved, read, and counted toward a Verdict — most hardcoded and invisible from the UI (e.g. only the top 6 Evidence per Question reach the Verdict; the 30/14-day retrieval window; reliability/confidence gates where a low-reliability source can only contextualize, never decide). All of them, alongside the configurable settings, are catalogued in `docs/pipeline-limits.md`. Note: the de-novo `excludeDomains` exclusion described above is currently **OFF** in code — see that doc for the actual current values.

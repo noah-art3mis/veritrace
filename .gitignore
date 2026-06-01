@@ -45,5 +45,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Local Claude Code session state
-.claude/
+# Local Claude Code session state (but keep committed skills)
+.claude/*
+!.claude/skills/
