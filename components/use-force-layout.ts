@@ -51,19 +51,9 @@ interface ForceConfig {
   collideIter: number;
 }
 
-// Card view: x is hard-anchored to the dagre column (keeps SOURCE→CLAIM→QUESTION→EVIDENCE and the
-// evidence grid), y is loose so collision + charge do the vertical jostle. Radial: a moderate pull
-// to the computed slot keeps the rings legible while a gentle charge perturbs the circles.
-const CARD_FORCES: ForceConfig = {
-  charge: -180,
-  chargeMax: 600,
-  linkGap: 80,
-  linkStrength: 0.12,
-  anchorX: 0.6,
-  anchorY: 0.05,
-  collidePad: 6,
-  collideIter: 2,
-};
+// Radial only: a moderate pull to the computed slot keeps the rings legible while a gentle charge
+// perturbs the circles. The card view doesn't run the sim at all — it uses the static dagre
+// placement (SOURCE→CLAIM→QUESTION→EVIDENCE columns + the evidence grid), no physics.
 const RADIAL_FORCES: ForceConfig = {
   charge: -30,
   chargeMax: 200,
@@ -115,9 +105,9 @@ export interface ForceLayout {
 }
 
 /**
- * Drive React Flow nodes from a d3-force simulation seeded by `flow`'s anchors. When `motion` is
- * false (prefers-reduced-motion) or the graph exceeds HARD_CAP, it places nodes statically at their
- * anchors with no simulation and no rAF.
+ * Drive React Flow nodes from a d3-force simulation seeded by `flow`'s anchors. The sim runs for the
+ * radial view only — the card view (plus prefers-reduced-motion, or any graph over HARD_CAP) places
+ * nodes statically at their anchors with no simulation and no rAF.
  */
 export function useForceLayout(flow: AnchorFlow, view: ViewMode, motion: boolean): ForceLayout {
   const [nodes, setNodes, baseOnNodesChange] = useNodesState<AppNode>([]);
@@ -130,7 +120,9 @@ export function useForceLayout(flow: AnchorFlow, view: ViewMode, motion: boolean
   const lastTopoRef = useRef<string>("");
   const lastViewRef = useRef<ViewMode>(view);
 
-  const enabled = motion && flow.anchors.length > 0 && flow.anchors.length <= HARD_CAP;
+  // Force runs in the radial view only; cards use the static dagre placement below.
+  const enabled =
+    view === "radial" && motion && flow.anchors.length > 0 && flow.anchors.length <= HARD_CAP;
 
   const stopLoop = useCallback(() => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -198,7 +190,24 @@ export function useForceLayout(flow: AnchorFlow, view: ViewMode, motion: boolean
   useEffect(() => {
     metaRef.current = new Map(flow.anchors.map((m) => [m.id, m]));
 
-    // Reduced motion / oversized graph: static placement at anchors, no sim, no rAF.
+    const topologyChanged = flow.topology !== lastTopoRef.current;
+    const viewChanged = view !== lastViewRef.current;
+
+    // Data-only tick (verdict/status/trace stream): swap changed `data` refs, keep positions, do
+    // NOT reheat. Position-unchanged nodes keep their object identity → no needless re-render. Runs
+    // for both views, so the static card view keeps the same cheap streaming path as sim'd radial.
+    if (!topologyChanged && !viewChanged) {
+      const byId = new Map(flow.dataNodes.map((dn) => [dn.id, dn.data]));
+      setNodes((prev) =>
+        prev.map((n) => {
+          const data = byId.get(n.id);
+          return data && data.item !== n.data.item ? ({ ...n, data } as AppNode) : n;
+        }),
+      );
+      return;
+    }
+
+    // Card view (plus reduced motion / oversized graph): static placement at anchors, no sim, no rAF.
     if (!enabled) {
       stopLoop();
       simRef.current?.stop();
@@ -209,22 +218,6 @@ export function useForceLayout(flow: AnchorFlow, view: ViewMode, motion: boolean
       setNodes(buildNodeList());
       lastTopoRef.current = flow.topology;
       lastViewRef.current = view;
-      return;
-    }
-
-    const topologyChanged = flow.topology !== lastTopoRef.current;
-    const viewChanged = view !== lastViewRef.current;
-
-    // Data-only tick (verdict/status/trace stream): swap changed `data` refs, keep positions, do
-    // NOT reheat. Position-unchanged nodes keep their object identity → no needless re-render.
-    if (!topologyChanged && !viewChanged) {
-      const byId = new Map(flow.dataNodes.map((dn) => [dn.id, dn.data]));
-      setNodes((prev) =>
-        prev.map((n) => {
-          const data = byId.get(n.id);
-          return data && data.item !== n.data.item ? ({ ...n, data } as AppNode) : n;
-        }),
-      );
       return;
     }
 
@@ -247,7 +240,7 @@ export function useForceLayout(flow: AnchorFlow, view: ViewMode, motion: boolean
     }
     simNodesRef.current = sims;
 
-    const F = view === "radial" ? RADIAL_FORCES : CARD_FORCES;
+    const F = RADIAL_FORCES; // enabled ⇒ radial view (cards returned via the static branch above)
     const links: SimulationLinkDatum<SimNode>[] = flow.linkEdges
       .filter((e) => sims.has(e.source) && sims.has(e.target))
       .map((e) => ({ source: e.source, target: e.target }));
