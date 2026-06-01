@@ -88,6 +88,8 @@ export interface RunReportProps {
   summary: string | null;
   summaryLoading: boolean;
   summaryError: string | null;
+  /** Hide the verdict headline, per-verdict ratio, and AI narrative — the "pre-chewed" answer. */
+  withholdVerdict?: boolean;
 }
 
 export default function RunReport({
@@ -97,9 +99,10 @@ export default function RunReport({
   summary,
   summaryLoading,
   summaryError,
+  withholdVerdict = false,
 }: RunReportProps) {
   const verdict = graph.source.verdict;
-  const m = verdict ? VERDICT_META[verdict] : null;
+  const m = !withholdVerdict && verdict ? VERDICT_META[verdict] : null;
 
   return (
     <aside
@@ -136,47 +139,55 @@ export default function RunReport({
       </div>
 
       <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
-        <RatioBar graph={graph} />
+        {withholdVerdict ? (
+          <p className="font-mono text-[10.5px] leading-[1.6] text-[var(--ink-3)]">
+            ▣ Verdict withheld by setting — weigh the evidence below and reach your own conclusion.
+          </p>
+        ) : (
+          <RatioBar graph={graph} />
+        )}
         <EvidenceStats graph={graph} />
 
-        {/* AI narrative. */}
-        <div className="border-t border-[var(--line)] pt-4">
-          <div className="mb-2.5 flex items-center gap-2 font-mono text-[9.5px] uppercase tracking-[0.2em] text-[var(--ink-3)]">
-            <span style={{ color: "var(--accent)" }}>✦</span> Summary
-            {summaryLoading && (
-              <span className="ml-auto inline-flex items-center gap-1.5 text-[var(--accent)]">
-                <span className="h-2.5 w-2.5 animate-spin rounded-full border border-current border-t-transparent" />
-                writing
-              </span>
+        {/* AI narrative — withheld alongside the verdict; it states the conclusion outright. */}
+        {!withholdVerdict && (
+          <div className="border-t border-[var(--line)] pt-4">
+            <div className="mb-2.5 flex items-center gap-2 font-mono text-[9.5px] uppercase tracking-[0.2em] text-[var(--ink-3)]">
+              <span style={{ color: "var(--accent)" }}>✦</span> Summary
+              {summaryLoading && (
+                <span className="ml-auto inline-flex items-center gap-1.5 text-[var(--accent)]">
+                  <span className="h-2.5 w-2.5 animate-spin rounded-full border border-current border-t-transparent" />
+                  writing
+                </span>
+              )}
+            </div>
+
+            {summaryError && !summaryLoading && (
+              <p className="font-mono text-[11px]" style={{ color: "var(--refutes)" }}>
+                ⚠ {summaryError}
+              </p>
+            )}
+
+            {summaryLoading && !summary && (
+              <div className="space-y-2">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="vt-shimmer h-3 rounded bg-[var(--panel-2)]"
+                    style={{ width: `${[96, 88, 92, 70, 84][i]}%` }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {summary && (
+              <div className="space-y-3 text-[13px] leading-[1.6] text-[var(--ink-1)]">
+                {summary.split(/\n{2,}/).map((para, i) => (
+                  <p key={i}>{para.trim()}</p>
+                ))}
+              </div>
             )}
           </div>
-
-          {summaryError && !summaryLoading && (
-            <p className="font-mono text-[11px]" style={{ color: "var(--refutes)" }}>
-              ⚠ {summaryError}
-            </p>
-          )}
-
-          {summaryLoading && !summary && (
-            <div className="space-y-2">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="vt-shimmer h-3 rounded bg-[var(--panel-2)]"
-                  style={{ width: `${[96, 88, 92, 70, 84][i]}%` }}
-                />
-              ))}
-            </div>
-          )}
-
-          {summary && (
-            <div className="space-y-3 text-[13px] leading-[1.6] text-[var(--ink-1)]">
-              {summary.split(/\n{2,}/).map((para, i) => (
-                <p key={i}>{para.trim()}</p>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </aside>
   );

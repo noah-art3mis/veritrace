@@ -2,7 +2,16 @@ import { createContext, memo, useContext } from "react";
 import { Handle, Position, type NodeProps, type NodeTypes } from "@xyflow/react";
 import type { SourceNode, ClaimNode, QuestionNode, EvidenceNode } from "@/lib/graph-to-flow";
 import { VERDICT_META, STANCE_META, RELIABILITY_META } from "@/lib/visuals";
-import type { Verdict, Reliability, ClaimTally, QuestionTrace } from "@/lib/graph-types";
+import type {
+  Verdict,
+  Reliability,
+  ClaimTally,
+  QuestionTrace,
+  SourceTextItem,
+  ClaimItem,
+  QuestionItem,
+  EvidenceItem,
+} from "@/lib/graph-types";
 import { isRelevanceDropped } from "@/lib/pipeline/claim-status";
 
 /**
@@ -11,6 +20,21 @@ import { isRelevanceDropped } from "@/lib/pipeline/claim-status";
  * Driven by the "show pipeline internals" setting; provided by FactGraphCanvas. Default off.
  */
 export const InternalsContext = createContext(false);
+
+/**
+ * Whether to withhold the machine's aggregate Verdict (the Source card's badge + support
+ * ratio) so the Fact-checker reaches their own conclusion. Driven by the "withhold verdict"
+ * setting; provided by FactGraphCanvas. Per-claim verdict badges and evidence stance colours
+ * are intentionally NOT gated by this — they're observations, not the headline verdict. Default off.
+ */
+export const WithholdVerdictContext = createContext(false);
+
+/**
+ * Optional callback to re-include a relevance-dropped claim (#33): the user overrides the filter
+ * and the claim is re-resolved (questions → search → verdict) in place. Provided by
+ * FactGraphCanvas from the workbench; null when re-include isn't wired (e.g. the static mock).
+ */
+export const ReincludeContext = createContext<((claim: ClaimItem) => void) | null>(null);
 
 const handleStyle = { width: 7, height: 7, border: 0, background: "var(--ink-4)" };
 const IN = <Handle type="target" position={Position.Left} style={handleStyle} />;
@@ -57,7 +81,14 @@ function VerdictBadge({ verdict }: { verdict: Verdict | null }) {
       className="inline-flex items-center gap-1.5 rounded-[5px] border px-2 py-[3px]"
       style={{ borderColor: `${m.color}55`, background: m.soft, boxShadow: `0 0 14px ${m.glow}` }}
     >
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.color }} />
+      {/* glyph + word are both non-colour cues, so the verdict reads without seeing hue (#8) */}
+      <span
+        aria-hidden
+        className="font-mono text-[10px] font-bold leading-none"
+        style={{ color: m.color }}
+      >
+        {m.glyph}
+      </span>
       <span className="font-display text-[12.5px] italic leading-none" style={{ color: m.color }}>
         {m.label}
       </span>
@@ -171,9 +202,20 @@ function QuestionTraceBlock({ trace }: { trace: QuestionTrace }) {
   );
 }
 
-/* The artifact under examination — the human-authored viral post, set in serif. */
-function SourceNodeCard({ data }: NodeProps<SourceNode>) {
-  const { item } = data;
+/* The artifact under examination — the human-authored viral post, set in serif. `withHandles`
+   is false when the card is rendered outside a React Flow node (the radial detail panel, #48),
+   where <Handle>s have no node context and would misbehave. */
+export function SourceCard({
+  item,
+  withHandles = true,
+}: {
+  item: SourceTextItem;
+  withHandles?: boolean;
+}) {
+  const withhold = useContext(WithholdVerdictContext);
+  // While analyzing (verdict still null) the badge is just a progress pulse, not a verdict, so
+  // keep showing it even when withholding — only a resolved verdict is the "pre-chewed" answer.
+  const hideVerdict = withhold && item.verdict !== null;
   return (
     <div
       className="vt-node relative rounded-lg border border-[var(--line-2)] bg-[var(--panel)] px-4 py-3.5"
@@ -182,25 +224,44 @@ function SourceNodeCard({ data }: NodeProps<SourceNode>) {
       <Ticks />
       <div className="mb-2.5 flex items-center justify-between px-1">
         <Kicker>Source · Exhibit</Kicker>
-        <VerdictBadge verdict={item.verdict} />
+        {hideVerdict ? (
+          <span
+            className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--ink-3)]"
+            title="Verdict withheld — read the evidence and reach your own conclusion"
+          >
+            verdict withheld
+          </span>
+        ) : (
+          <VerdictBadge verdict={item.verdict} />
+        )}
       </div>
       <p className="font-display px-1 text-[15px] leading-[1.5] text-[var(--ink-1)]">{item.text}</p>
-      {item.tally && <SupportRatio tally={item.tally} />}
-      {OUT}
+      {!hideVerdict && item.tally && <SupportRatio tally={item.tally} />}
+      {withHandles && OUT}
     </div>
   );
 }
 
+function SourceNodeCard({ data }: NodeProps<SourceNode>) {
+  return <SourceCard item={data.item} />;
+}
+
 /* A machine-extracted, decontextualized assertion — body sans; verdict in serif. */
-function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
-  const { item } = data;
+export function ClaimCard({
+  item,
+  withHandles = true,
+}: {
+  item: ClaimItem;
+  withHandles?: boolean;
+}) {
   const internals = useContext(InternalsContext);
+  const reinclude = useContext(ReincludeContext);
   const dropped = isRelevanceDropped(item);
   const m = item.verdict ? VERDICT_META[item.verdict] : null;
   const accent = m?.color ?? "var(--accent)";
   return (
     <div
-      className="vt-node relative rounded-lg border bg-[var(--panel)] px-3.5 py-3"
+      className="vt-node relative rounded-lg border bg-[var(--panel)] py-3 pl-4 pr-3.5"
       style={{
         width: 320,
         opacity: dropped ? 0.5 : 1,
@@ -209,7 +270,16 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
         boxShadow: dropped ? "none" : m ? `0 0 0 1px ${m.color}14, ${cardShadow}` : cardShadow,
       }}
     >
-      {IN}
+      {/* Verdict-colored left bar — the scannable signal (#23), and the same anatomy the evidence
+          card uses (#26): a colored rail down the left edge. Neutral while analyzing or dropped. */}
+      {!dropped && (
+        <span
+          aria-hidden
+          className="absolute bottom-3 left-0 top-3 w-[3px] rounded-full"
+          style={{ background: accent }}
+        />
+      )}
+      {withHandles && IN}
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="flex items-center gap-2">
           <Kicker>Claim · {item.id.toUpperCase()}</Kicker>
@@ -239,9 +309,25 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
         </p>
       )}
       {dropped && (
-        <p className="mt-2 font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)]">
-          ▽ background · not the contested claim — segmented out, not checked
-        </p>
+        <div className="mt-2 flex flex-col gap-1.5">
+          <p className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)]">
+            ▽ background · not the contested claim — segmented out, not checked
+          </p>
+          {/* Override the relevance filter and search this claim after all (#33). The handler
+              re-resolves it in place; null when re-include isn't wired (e.g. the static mock). */}
+          {reinclude && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                reinclude(item);
+              }}
+              className="self-start rounded-md border border-[var(--line-2)] px-2 py-1 font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)]"
+            >
+              ↑ re-include &amp; search
+            </button>
+          )}
+        </div>
       )}
       {!dropped && item.rationale && (
         <p
@@ -270,26 +356,42 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
           ⚠ added detail: {item.injected.join(", ")}
         </p>
       )}
-      {OUT}
+      {withHandles && OUT}
     </div>
   );
 }
 
+function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
+  return <ClaimCard item={data.item} />;
+}
+
 /* The machine's probe — mono, phosphor cyan; shimmer sweep while Exa runs. */
-function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
-  const { item } = data;
+export function QuestionCard({
+  item,
+  withHandles = true,
+}: {
+  item: QuestionItem;
+  withHandles?: boolean;
+}) {
   const internals = useContext(InternalsContext);
   const searching = item.status === "searching";
   return (
     <div
-      className="vt-node relative overflow-hidden rounded-md border bg-[var(--panel-2)] px-3 py-2.5"
+      className="vt-node relative overflow-hidden rounded-md border bg-[var(--panel-2)] py-2.5 pl-4 pr-3"
       style={{
         width: 280,
         borderColor: searching ? "rgba(58,214,230,0.45)" : "var(--line)",
       }}
     >
       {searching && <span className="vt-shimmer pointer-events-none absolute inset-0" />}
-      {IN}
+      {/* Left rail for anatomical parity with the claim/evidence cards (#26). Question color is
+          process status, never veracity (ADR): cyan while searching, neutral otherwise. */}
+      <span
+        aria-hidden
+        className="absolute bottom-2.5 left-0 top-2.5 w-[3px] rounded-full"
+        style={{ background: searching ? "var(--accent)" : "var(--ink-4)" }}
+      />
+      {withHandles && IN}
       <div className="relative mb-1.5 flex items-center gap-2">
         <span
           className="font-mono text-[9px] uppercase tracking-[0.2em]"
@@ -311,14 +413,23 @@ function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
         {item.text}
       </p>
       {internals && item.trace && <QuestionTraceBlock trace={item.trace} />}
-      {OUT}
+      {withHandles && OUT}
     </div>
   );
 }
 
+function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
+  return <QuestionCard item={data.item} />;
+}
+
 /* A filed primary source — passage in serif (the quote), metadata in mono. */
-function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
-  const { item } = data;
+export function EvidenceCard({
+  item,
+  withHandles = true,
+}: {
+  item: EvidenceItem;
+  withHandles?: boolean;
+}) {
   const internals = useContext(InternalsContext);
   const stance = STANCE_META[item.stance];
   return (
@@ -335,13 +446,17 @@ function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
         className="absolute bottom-3 left-0 top-3 w-[3px] rounded-full"
         style={{ background: stance.color }}
       />
-      {IN}
-      {/* When a question's evidence wraps into a grid, each card feeds its right neighbour
-          (the "comb" layout in graph-to-flow), so the right handle is a flow source. */}
-      <Handle type="source" id="flow-out" position={Position.Right} style={handleStyle} />
-      {/* Same-rank conflict overlay attaches here, not to the left/right flow handles. */}
-      <Handle type="source" id="conflict-out" position={Position.Top} style={handleStyle} />
-      <Handle type="target" id="conflict-in" position={Position.Bottom} style={handleStyle} />
+      {withHandles && (
+        <>
+          {IN}
+          {/* When a question's evidence wraps into a grid, each card feeds its right neighbour
+              (the "comb" layout in graph-to-flow), so the right handle is a flow source. */}
+          <Handle type="source" id="flow-out" position={Position.Right} style={handleStyle} />
+          {/* Same-rank conflict overlay attaches here, not to the left/right flow handles. */}
+          <Handle type="source" id="conflict-out" position={Position.Top} style={handleStyle} />
+          <Handle type="target" id="conflict-in" position={Position.Bottom} style={handleStyle} />
+        </>
+      )}
       <div className="mb-1.5 flex items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -392,6 +507,10 @@ function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
       </div>
     </div>
   );
+}
+
+function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
+  return <EvidenceCard item={data.item} />;
 }
 
 // Memoized so a stable node object (see useGraphFlow) skips re-rendering entirely. Cards still

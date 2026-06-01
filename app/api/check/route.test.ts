@@ -3,11 +3,20 @@ import type { PipelineEvent } from "@/lib/pipeline/events";
 import { DEFAULT_CHARS } from "@/lib/run-config";
 
 const { streamPipeline } = vi.hoisted(() => ({ streamPipeline: vi.fn() }));
-const { createAnthropic } = vi.hoisted(() => ({ createAnthropic: vi.fn() }));
+const { createReasoner } = vi.hoisted(() => ({ createReasoner: vi.fn() }));
 const { createExaSearch } = vi.hoisted(() => ({ createExaSearch: vi.fn() }));
+// The route is guarded by a module-level rate limiter shared across requests; mock it so the
+// suite doesn't drain a real bucket (and so we can drive the reject path explicitly).
+const { apiRateLimiter, clientIp } = vi.hoisted(() => ({
+  apiRateLimiter: {
+    check: vi.fn((): { ok: boolean; retryAfterMs?: number } => ({ ok: true })),
+  },
+  clientIp: vi.fn(() => "test-ip"),
+}));
 vi.mock("@/lib/pipeline/stream", () => ({ streamPipeline }));
-vi.mock("@/lib/anthropic", () => ({ createAnthropic }));
+vi.mock("@/lib/reasoner", () => ({ createReasoner }));
 vi.mock("@/lib/exa", () => ({ createExaSearch }));
+vi.mock("@/lib/rate-limit", () => ({ apiRateLimiter, clientIp }));
 
 import { POST } from "./route";
 
@@ -33,8 +42,39 @@ async function* empty() {
 
 beforeEach(() => {
   streamPipeline.mockReset().mockImplementation(empty);
-  createAnthropic.mockReset().mockReturnValue({ askText: vi.fn(), askJSON: vi.fn() });
+  createReasoner.mockReset().mockReturnValue({
+    askText: vi.fn(),
+    askJSON: vi.fn(),
+    askWithTools: vi.fn(),
+  });
   createExaSearch.mockReset().mockReturnValue(vi.fn());
+  apiRateLimiter.check.mockReset().mockReturnValue({ ok: true });
+});
+
+describe("POST /api/check rate limiting", () => {
+  it("returns 429 with Retry-After when the limiter rejects, before any work", async () => {
+    apiRateLimiter.check.mockReturnValue({ ok: false, retryAfterMs: 5000 });
+    const res = await POST(post(JSON.stringify({ text: "hi" })));
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("5");
+    expect((await res.json()).error).toMatch(/too many requests/i);
+    expect(streamPipeline).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/check error mapping", () => {
+  it("maps a provider 429 in the stream to readable rate-limit guidance", async () => {
+    streamPipeline.mockImplementation(async function* () {
+      yield { type: "source", source: { id: "src", text: "hi", verdict: null } };
+      throw Object.assign(new Error("429 status code (no body)"), { status: 429 });
+    });
+    const res = await POST(post(JSON.stringify({ text: "hi" })));
+    const events = await ndjson(res);
+    const last = events[events.length - 1] as { type: string; message: string };
+    expect(last.type).toBe("error");
+    expect(last.message).toMatch(/rate-?limit/i);
+    expect(last.message).not.toMatch(/no body/i);
+  });
 });
 
 describe("POST /api/check validation", () => {
@@ -77,13 +117,13 @@ describe("POST /api/check config validation", () => {
     expect((await res.json()).error).toMatch(/temperature/i);
   });
 
-  it("returns 400 when no API key can be resolved (createAnthropic throws)", async () => {
-    createAnthropic.mockImplementation(() => {
-      throw new Error("ANTHROPIC_API_KEY is not set (and no key was provided)");
+  it("returns 400 when no API key can be resolved (the reasoner throws)", async () => {
+    createReasoner.mockImplementation(() => {
+      throw new Error("GEMINI_API_KEY is not set (required for the selected Gemini model).");
     });
     const res = await POST(post(JSON.stringify({ text: "hi" })));
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/ANTHROPIC_API_KEY/);
+    expect((await res.json()).error).toMatch(/GEMINI_API_KEY/);
   });
 });
 
@@ -113,7 +153,7 @@ describe("POST /api/check streaming", () => {
     await POST(
       post(JSON.stringify({ text: "hi", config: { model: "claude-opus-4-8", temperature: 0.3 } })),
     );
-    expect(createAnthropic).toHaveBeenCalledWith(
+    expect(createReasoner).toHaveBeenCalledWith(
       expect.objectContaining({ model: "claude-opus-4-8", temperature: 0.3 }),
     );
   });
@@ -130,6 +170,35 @@ describe("POST /api/check streaming", () => {
         preferFresh: false,
       }),
     );
+  });
+
+  it("staggers evidence events but preserves every event and its order", async () => {
+    // The route paces evidence apart for a calm one-at-a-time live build (#9). Staggering must
+    // not drop or reorder anything — all events arrive, in the order the pipeline yielded them.
+    streamPipeline.mockImplementation(async function* () {
+      yield { type: "source", source: { id: "src", text: "hi", verdict: null } };
+      yield { type: "evidence", evidence: { id: "e1" } };
+      yield { type: "evidence", evidence: { id: "e2" } };
+      yield { type: "evidence", evidence: { id: "e3" } };
+      yield { type: "claim_verdict", id: "c1", verdict: "supported", rationale: "r" };
+      yield { type: "done" };
+    });
+
+    const res = await POST(post(JSON.stringify({ text: "hi" })));
+    const events = await ndjson(res);
+    expect(events.map((e) => e.type)).toEqual([
+      "source",
+      "evidence",
+      "evidence",
+      "evidence",
+      "claim_verdict",
+      "done",
+    ]);
+    expect(events.filter((e) => e.type === "evidence").map((e) => e.evidence.id)).toEqual([
+      "e1",
+      "e2",
+      "e3",
+    ]);
   });
 
   it("converts a mid-stream pipeline failure into a terminal error event, not a crash", async () => {

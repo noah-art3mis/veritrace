@@ -4,7 +4,7 @@
 
 [Access here](https://veritrace-chi.vercel.app/)
 
-**The AI fact-checker that shows its work.**
+**Observable AI fact checker.**
 
 VERITRACE is an observability workbench for fact-checking. Paste a claim and an AI decomposes it into atomic sub-claims, writes the exact questions needed to resolve each, and retrieves live **primary sources** to answer them — laying the entire reasoning trail bare as a traversable evidence graph that builds itself in real time. Verdicts are advisory only: every step traces to a source you can open, so the journalist — not the model — makes the final call.
 
@@ -31,26 +31,53 @@ Source text  →  Claims  →  Questions  →  Evidence  →  Verdict
 
 Each card flies into the graph the moment its stage completes; a claim's verdict resolves as soon as its last question answers.
 
-## How it's built
+## Innovations
 
-Each stage is a recognized fact-checking / retrieval technique, not an ad-hoc prompt:
+Every stage is a recognized fact-checking / retrieval technique made inspectable — not an ad-hoc prompt. The work below is grounded in the literature (see the [Methodology page](https://veritrace-chi.vercel.app/methodology)) and tracked issue-by-issue; numbers point at the issues/PRs that shipped each piece.
 
-- **SAFE-style two-pass decompose.** Segment the source into _every_ atomic utterance (presuppositions included), then triage: decontextualize each + relevance-filter to the load-bearing claims. Trivial background is greyed as "dropped," not checked.
-- **HyDE query expansion.** Before searching, the model writes a short _neutral_ hypothetical primary-source passage and appends it to the query, so retrieval matches the shape of ideal evidence.
-- **Agentic gather loop.** Retrieval is a model-driven, multi-query search loop that keeps varying its angle until it has at least two reliable sources including one primary — with a hard cap as the backstop.
-- **Deterministic, inspectable verdict.** The evidence→verdict mapping is a _stated_ rule, not a learned black box: stance must be read clearly enough, and only high/medium-reliability sources can _move_ a verdict — a blog can only contextualize.
+### Retrieval
 
-## Built for messy, adversarial input
-
-Real viral text is misspelled, duplicated, and slanted. VERITRACE hardens every stage against it:
-
-- **Typo & entity repair.** The decomposer reads for intent and fixes mangled named entities before extracting.
-- **Honest provenance.** Ensures a finished third-party fact-check is never counted as a _primary source_.
-- **Scope-faithful claims.** Decomposition preserves the source's quantifier and the classifier won't let one individual's action "support" a claim about a group.
-- **De-duplicated claims.** Restatements of the same proposition collapse to one checked claim.
+- **Stance-shaped HyDE.** Before searching, the model writes hypothetical primary-source passages and appends them to the query so retrieval matches the _shape_ of ideal evidence. VERITRACE's twist on classic HyDE is a **2-way confirm/refute split** — a passage that would _support_ the claim and one that would _refute_ it — searched in both directions instead of one neutral passage, so a true claim and its denial are both surfaced (#13, #46, #61). Fusing the two rankings via Reciprocal Rank Fusion is the planned next step (#56).
+- **Agentic gather loop.** Retrieval is a model-driven, multi-query search loop that keeps varying its angle until it holds at least two reliable sources including one primary — with a hard cap as the backstop, never a black-box single shot.
+- **Trace to the origin, not the echo.** An agent walks every claim back to its originating source — a news wire, an official statement, a registry — rather than stopping at re-reporting that parrots the viral claim. A finished third-party fact-check is treated as a _waypoint_ to the primaries it cites, never as the answer to copy: it is never counted as a primary source and its conclusion never moves a verdict (#51, #72).
+- **Domain-credibility list.** Source reliability comes from a curated static domain list, not an LLM guess (#7, #43).
 - **Date-anchored retrieval.** The event date is inferred from the text, keeping years-old reporting from polluting a fresh claim.
-- **Legible evidence nodes.** Each question keeps only its most decision-relevant sources, so a node stays readable instead of sprawling to dozens of cards.
+- **Budget-bounded claim selection.** Checking is a relevance-ordered, fixed-depth search over the top-scoring claims, not a full-width expansion that explodes with the input (#11, #60; ADR 0005).
+- **Google Fact Check Tools** integration as an optional waypoint/short-circuit (#19).
+
+### Decomposition & triage
+
+- **SAFE-style two-pass decompose.** Segment the source into _every_ atomic utterance (presuppositions included), then triage: decontextualize each (inject date/place/actor) and relevance-filter to the load-bearing claims. Trivial background and entailed premises are greyed as "dropped," not checked (#52, #73).
+- **Mechanical claim-echo filter.** Circular "evidence" that merely restates the claim is dropped before classification, so a viral message can't corroborate itself (#14, #41).
+- **Typo & entity repair.** The decomposer reads for intent and fixes mangled named entities before extracting.
+- **Scope-faithful, de-duplicated claims.** Decomposition preserves the source's quantifier (one individual's action can't "support" a claim about a group), and restatements of the same proposition collapse to one checked claim.
+
+### Verdict honesty
+
+- **Deterministic, inspectable verdict.** The evidence→verdict mapping is a _stated_ rule, not a learned black box: stance must be read clearly enough, and only high/medium-reliability sources can _move_ a verdict — a blog can only contextualize.
+- **Conflicting ≠ Not-Enough-Evidence.** The aggregation distinguishes genuinely conflicting/cherry-picked evidence from simply inconclusive evidence, relevance-weighted so a single decomposed sub-claim can't dominate the document verdict (#53, #74; ADR 0007).
+- **Echo-chamber guard.** A verdict abstains to Not-Enough-Evidence when no _deciding_ source is primary (#51, #72).
+- **Withhold-verdict mode.** A settings toggle hides the model's label entirely so the fact-checker reaches their own conclusion from the trail (#3, #39).
+
+### Explainability & UX
+
+- **The graph is the explanation.** It builds live, streaming one source at a time rather than dumping per-question blocks (#9, #45).
+- **Constellation view.** An additive radial overview for reading the _shape_ of a large investigation at a glance, with zoom-aware edge labels (#47, #82), spring-eased settle motion (#49), and the real card reused on open (#48, #86) — secondary to the cards, never a replacement (ADR 0003).
+- **Verdict-driven cards.** Consistent card anatomy with verdict colour propagated along the connectors (#23, #24, #26, #79, #80), reading-order orientation, and clean edge routing (#25, #81).
+- **Colourblind-safe encoding.** A colour↔meaning legend plus redundant non-colour glyph cues (#8, #44).
+- **Re-include a dropped claim.** The fact-checker can manually un-drop a relevance-filtered claim back into the graph (#33, #83).
+- **Transparency principle.** Every decision the pipeline makes — segmentation, the relevance ranking and what it dropped, decontextualization, the HyDE anchors, the queries, stance/reliability classification, the verdict rule — is surfaced rather than abstracted away.
+- **Mobile-first viewport.** Scrollable settings, auto-hidden minimap, and a collapsing input reclaim the first screen on small viewports (#4, #5, #6, #27).
+
+### Engineering & reliability
+
+- **Pluggable providers.** An OpenAI-compatible reasoning adapter lets the same pipeline run on Anthropic, OpenAI, or Gemini with no code changes; the model dropdown drives the backend and shows per-model cost (#10, #62, #67; ADR 0004).
+- **Self-repairing JSON.** `askJSON` validates against a schema and does one bounded re-ask on malformed output — essential for cheaper, flakier models (#66).
+- **Resilient runs.** A single flaky model parse or an Exa timeout degrades one node instead of crashing the whole run (#70, #71).
+- **Rate-limit hardening.** A concurrency limiter, a per-IP rate limit, and friendly provider-error mapping tame free-tier 429s (#68, #69).
+- **Honest eval harness.** Gold claims are bootstrapped from openly-licensed academic benchmarks (AVeriTeC, X-Fact) rather than scraped from the fact-checkers, then scored against the live pipeline (#16, #55; ADR 0002).
+- **Thin all-API backend.** A single Next.js/TypeScript app where every NLP stage is an HTTP call — no local model, no GPU in the critical path (ADR 0001).
 
 ## Methodology
 
-For more details see the [**Methodology & References** page](https://veritrace-chi.vercel.app/methodology).
+For the research grounding and full reference list see the [**Methodology & References** page](https://veritrace-chi.vercel.app/methodology).

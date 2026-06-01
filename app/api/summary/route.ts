@@ -1,12 +1,14 @@
-import { createAnthropic } from "@/lib/anthropic";
+import { createReasoner } from "@/lib/reasoner";
 import { parseConfig } from "@/lib/run-config";
 import { summarizeGraph } from "@/lib/pipeline/summarize";
 import type { FactGraph } from "@/lib/graph-types";
+import { apiRateLimiter, clientIp } from "@/lib/rate-limit";
+import { friendlyProviderError } from "@/lib/provider-errors";
 
 // Post-run narrative summary. The client sends a *finished* graph (the same shape the live
-// build produced, or a cached replay) plus the run config, and gets back a short prose brief
-// for the report panel. One non-streaming model call — kept off the /api/check hot path so the
-// graph can finish rendering first, and so it works identically for live and cached runs.
+// build produced) plus the run config, and gets back a short prose brief for the report panel.
+// One non-streaming model call — kept off the /api/check hot path so the graph can finish
+// rendering first.
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
@@ -23,6 +25,17 @@ function isFinishedGraph(value: unknown): value is FactGraph {
 }
 
 export async function POST(request: Request) {
+  const rl = apiRateLimiter.check(clientIp(request));
+  if (!rl.ok) {
+    return Response.json(
+      { error: "Too many requests — wait a moment before generating another summary." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000)) },
+      },
+    );
+  }
+
   let body: { graph?: unknown; config?: unknown };
   try {
     body = await request.json();
@@ -39,7 +52,7 @@ export async function POST(request: Request) {
 
   let ask;
   try {
-    ask = createAnthropic(parseConfig(body.config));
+    ask = createReasoner(parseConfig(body.config));
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "Invalid run configuration" },
@@ -52,9 +65,6 @@ export async function POST(request: Request) {
     return Response.json({ summary });
   } catch (err) {
     console.error("[/api/summary]", err);
-    return Response.json(
-      { error: err instanceof Error ? err.message : "Summary generation failed" },
-      { status: 500 },
-    );
+    return Response.json({ error: friendlyProviderError(err) }, { status: 500 });
   }
 }

@@ -19,6 +19,7 @@ import {
   EXA_CATEGORIES,
   supportsTemperature,
   type ModelId,
+  type ModelInfo,
   type ExaCategory,
 } from "@/lib/run-config";
 
@@ -39,10 +40,21 @@ export interface Settings {
   category: ExaCategory | "";
   /** Prefer freshly-crawled content over Exa's cache — fresher for breaking news, but slower. */
   preferFresh: boolean;
+  /** Opt-in: short-circuit a claim with an existing Google Fact Check verdict, skipping retrieval. */
+  factCheckShortCircuit: boolean;
   anthropicKey: string;
   exaKey: string;
+  /** User-supplied Google Fact Check API key; "" = use the server's GOOGLE_FACT_CHECK_API_KEY. */
+  googleFactCheckKey: string;
   /** Display-only: reveal the pipeline's hidden retrieval internals in the graph. */
   showInternals: boolean;
+  /**
+   * Display-only: hide the machine's aggregate Verdict (Source card badge + support ratio,
+   * Investigation brief verdict + narrative) so the Fact-checker reads the evidence and
+   * reaches their own conclusion. Makes the advisory-only stance literal. Per-claim badges
+   * and evidence stance colours stay — they're observations, not the verdict.
+   */
+  withholdVerdict: boolean;
   /** Display-only: show the graph's minimap (the navigator thumbnail). */
   showMinimap: boolean;
 }
@@ -58,9 +70,12 @@ export const DEFAULT_SETTINGS: Settings = {
   deepSearch: false,
   category: "",
   preferFresh: false,
+  factCheckShortCircuit: false,
   anthropicKey: "",
   exaKey: "",
+  googleFactCheckKey: "",
   showInternals: false,
+  withholdVerdict: false,
   showMinimap: true,
 };
 
@@ -189,9 +204,9 @@ export function SettingsPanel({
                 onChange={(e) => set("model", e.target.value as ModelId)}
                 className={fieldCls}
               >
-                {(Object.entries(MODELS) as [ModelId, string][]).map(([id, name]) => (
+                {(Object.entries(MODELS) as [ModelId, ModelInfo][]).map(([id, info]) => (
                   <option key={id} value={id}>
-                    {name}
+                    {info.label} · ${info.inputCost}/${info.outputCost} per 1M
                   </option>
                 ))}
               </select>
@@ -374,6 +389,19 @@ export function SettingsPanel({
                 live-crawl over cache · fresher for breaking news, but slower
               </span>
             </div>
+
+            {/* Fact-check short-circuit — resolve a claim from an existing fact-checker verdict */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Fact-check short-circuit</label>
+              <Toggle
+                checked={settings.factCheckShortCircuit}
+                onClick={() => set("factCheckShortCircuit", !settings.factCheckShortCircuit)}
+              />
+              <span className={helpCls}>
+                resolve a claim from an existing Google Fact Check verdict, skipping de-novo
+                retrieval
+              </span>
+            </div>
           </Section>
 
           {/* ── Display ─────────────────────────────────────────────── */}
@@ -399,6 +427,19 @@ export function SettingsPanel({
               />
               <span className={helpCls}>navigator thumbnail in the graph corner</span>
             </div>
+
+            {/* Withhold verdict — hide the machine's aggregate verdict so the user concludes */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Withhold verdict</label>
+              <Toggle
+                checked={settings.withholdVerdict}
+                onClick={() => set("withholdVerdict", !settings.withholdVerdict)}
+              />
+              <span className={helpCls}>
+                hide the machine&apos;s aggregate verdict so you read the evidence and conclude
+                yourself
+              </span>
+            </div>
           </Section>
 
           {/* ── API keys ────────────────────────────────────────────── */}
@@ -422,6 +463,15 @@ export function SettingsPanel({
                   value={settings.exaKey}
                   onChange={(e) => set("exaKey", e.target.value)}
                   placeholder="EXA_API_KEY · blank uses server default"
+                  className={fieldCls}
+                />
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={settings.googleFactCheckKey}
+                  onChange={(e) => set("googleFactCheckKey", e.target.value)}
+                  placeholder="GOOGLE_FACT_CHECK_API_KEY · blank uses server default"
                   className={fieldCls}
                 />
               </div>
