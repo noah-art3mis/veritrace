@@ -29,6 +29,7 @@ const baseConfig: RunConfig = {
   deepSearch: false,
   category: "",
   preferFresh: false,
+  factCheckShortCircuit: false,
 };
 
 beforeEach(() => {

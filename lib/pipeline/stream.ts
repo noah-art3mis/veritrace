@@ -5,7 +5,8 @@ import { extractClaims } from "./extract";
 import { generateQuestions } from "./questions";
 import { resolveQuestion, rationaleFor } from "./resolve";
 import { claimVerdict, sourceVerdict, tallyClaims } from "./verdict";
-import { isRelevanceDropped } from "./claim-status";
+import { isRelevanceDropped, isSearchable } from "./claim-status";
+import { factCheckEvidence, factCheckRationale } from "../factcheck";
 
 /**
  * Run the VERITRACE pipeline as a stream of events. The rhythm matches the demo
@@ -25,9 +26,54 @@ export async function* streamPipeline(
   for (const claim of claims) yield { type: "claim", claim };
   const claimById = new Map(claims.map((c) => [c.id, c]));
 
-  // 2. Ask questions for every claim (parallel), then emit them.
+  // Per-claim verdicts accumulate here from three sources: the fact-check short-circuit
+  // (below), the question-less NEI rule, and the de-novo retrieval finale.
+  const verdictByClaim = new Map<string, Verdict>();
+
+  // 1b. Fact-check short-circuit (OPT-IN; off unless deps.factCheck is present). Before any
+  // question generation or web retrieval, ask whether a known fact-checker has ALREADY
+  // adjudicated each claim. On a confident hit we emit that finding as evidence under a
+  // synthetic question node and resolve the claim now — skipping the expensive HyDE → Exa
+  // gather loop → classify path. When deps.factCheck is absent this whole block is a no-op
+  // and the pipeline runs fully de novo. We only short-circuit on a DECIDING verdict (the
+  // fact-checks map to a clear supported/refuted); an ambiguous/empty result falls through.
+  const shortCircuited = new Set<string>();
+  if (deps.factCheck) {
+    const candidates = claims.filter(isSearchable);
+    const lookups = await Promise.all(
+      candidates.map((c) =>
+        deps
+          .factCheck!(c.text)
+          .then((hits) => ({ c, hits }))
+          .catch(() => ({ c, hits: [] })), // a lookup failure ⇒ fall through to de novo
+      ),
+    );
+    for (const { c, hits } of lookups) {
+      if (hits.length === 0) continue;
+      const questionId = `${c.id}-fc`;
+      const evidence = factCheckEvidence(hits, questionId);
+      const verdict = claimVerdict(c, evidence);
+      if (verdict === "nei") continue; // no confident existing adjudication → keep de novo
+      shortCircuited.add(c.id);
+      verdictByClaim.set(c.id, verdict);
+      // A synthetic, already-answered question keeps the graph's 4-layer shape intact so the
+      // short-circuit renders like any other resolved question.
+      const question: QuestionItem = {
+        id: questionId,
+        claimId: c.id,
+        text: "Has a known fact-checker already adjudicated this claim?",
+        status: "answered",
+      };
+      yield { type: "question", question };
+      for (const e of evidence) yield { type: "evidence", evidence: e };
+      yield { type: "claim_verdict", id: c.id, verdict, rationale: factCheckRationale(verdict, hits) };
+    }
+  }
+
+  // 2. Ask questions for every claim NOT already short-circuited (parallel), then emit them.
+  const toResolve = claims.filter((c) => !shortCircuited.has(c.id));
   const questionLists = await Promise.all(
-    claims.map((c) => generateQuestions(c, deps.ask, deps.maxQuestions)),
+    toResolve.map((c) => generateQuestions(c, deps.ask, deps.maxQuestions)),
   );
   const allQuestions: QuestionItem[] = questionLists.flat();
   for (const q of allQuestions) yield { type: "question", question: q };
@@ -35,7 +81,6 @@ export async function* streamPipeline(
   // Track per-claim outstanding questions so we can resolve each verdict as it completes.
   const remaining = new Map<string, number>();
   const evidenceByClaim = new Map<string, EvidenceItem[]>();
-  const verdictByClaim = new Map<string, Verdict>();
   for (const c of claims) {
     remaining.set(c.id, 0);
     evidenceByClaim.set(c.id, []);
@@ -45,8 +90,9 @@ export async function* streamPipeline(
   // 3. Question-less claims resolve to NEI immediately (unverifiable-by-text / opinion).
   // Relevance-dropped claims are the exception: they were segmented out before search, so
   // they carry no verdict at all — the renderer shows them greyed as "dropped", not NEI.
+  // Already-short-circuited claims are skipped — they carry a fact-check verdict.
   for (const c of claims) {
-    if (isRelevanceDropped(c)) continue;
+    if (isRelevanceDropped(c) || verdictByClaim.has(c.id)) continue;
     if ((remaining.get(c.id) ?? 0) === 0) {
       const verdict = claimVerdict(c, []);
       verdictByClaim.set(c.id, verdict);

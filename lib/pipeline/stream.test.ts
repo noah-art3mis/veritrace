@@ -153,6 +153,70 @@ describe("streamPipeline verdict resolution", () => {
   });
 });
 
+describe("streamPipeline fact-check short-circuit", () => {
+  const fcDeps = (factCheck: PipelineDeps["factCheck"]): PipelineDeps =>
+    ({ ...deps, factCheck }) as PipelineDeps;
+
+  beforeEach(() => {
+    extractClaims.mockResolvedValue([claim("c1")]);
+    generateQuestions.mockImplementation(async (c: ClaimItem) => [question(c.id, 1)]);
+    resolveQuestion.mockResolvedValue(resolved([evidence("c1-q1", "supports")]));
+  });
+
+  async function drainWith(d: PipelineDeps): Promise<PipelineEvent[]> {
+    const out: PipelineEvent[] = [];
+    for await (const ev of streamPipeline("post", d)) out.push(ev);
+    return out;
+  }
+
+  it("resolves a claim from an existing fact-check and skips question generation + retrieval", async () => {
+    const factCheck = vi.fn().mockResolvedValue([
+      { claimText: "x", publisher: "Snopes", site: "snopes.com", url: "https://snopes.com/x", title: "t", reviewDate: "2024-01-01", textualRating: "False", stance: "refutes", trusted: true },
+    ]);
+    const events = await drainWith(fcDeps(factCheck));
+
+    expect(factCheck).toHaveBeenCalledWith("claim c1");
+    expect(generateQuestions).not.toHaveBeenCalled();
+    expect(resolveQuestion).not.toHaveBeenCalled();
+
+    const verdict = events.find((e) => e.type === "claim_verdict");
+    expect(verdict).toMatchObject({ id: "c1", verdict: "refuted" });
+    // The fact-check is emitted as evidence under a synthetic question node.
+    const q = events.find((e) => e.type === "question");
+    expect(q).toMatchObject({ question: { id: "c1-fc", claimId: "c1", status: "answered" } });
+    const ev = events.find((e) => e.type === "evidence");
+    expect(ev).toMatchObject({ evidence: { questionId: "c1-fc", domain: "snopes.com" } });
+  });
+
+  it("falls through to de-novo retrieval when no confident fact-check exists", async () => {
+    const factCheck = vi.fn().mockResolvedValue([]); // no existing fact-check
+    const events = await drainWith(fcDeps(factCheck));
+
+    expect(generateQuestions).toHaveBeenCalled();
+    expect(resolveQuestion).toHaveBeenCalled();
+    const verdict = events.find((e) => e.type === "claim_verdict");
+    expect(verdict).toMatchObject({ id: "c1", verdict: "supported" });
+  });
+
+  it("falls through when the fact-check rating is only contextualizing (non-deciding)", async () => {
+    const factCheck = vi.fn().mockResolvedValue([
+      { claimText: "x", publisher: "Snopes", site: "snopes.com", url: "https://snopes.com/x", title: "t", textualRating: "Mixture", stance: "contextualizes", trusted: true },
+    ]);
+    const events = await drainWith(fcDeps(factCheck));
+
+    expect(resolveQuestion).toHaveBeenCalled(); // not short-circuited
+    expect(events.find((e) => e.type === "claim_verdict")).toMatchObject({ id: "c1", verdict: "supported" });
+  });
+
+  it("falls through when the lookup throws (a fact-check hiccup never sinks the run)", async () => {
+    const factCheck = vi.fn().mockRejectedValue(new Error("api down"));
+    const events = await drainWith(fcDeps(factCheck));
+
+    expect(resolveQuestion).toHaveBeenCalled();
+    expect(events.find((e) => e.type === "claim_verdict")).toMatchObject({ id: "c1", verdict: "supported" });
+  });
+});
+
 describe("collectGraph", () => {
   it("drains the stream into a finished graph with a supported claim and verdict", async () => {
     extractClaims.mockResolvedValue([claim("c1")]);
