@@ -228,7 +228,7 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
   const accent = m?.color ?? "var(--accent)";
   return (
     <div
-      className="vt-node relative rounded-lg border bg-[var(--panel)] px-3.5 py-3"
+      className="vt-node relative rounded-lg border bg-[var(--panel)] py-3 pl-4 pr-3.5"
       style={{
         width: 320,
         opacity: dropped ? 0.5 : 1,
@@ -237,6 +237,15 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
         boxShadow: dropped ? "none" : m ? `0 0 0 1px ${m.color}14, ${cardShadow}` : cardShadow,
       }}
     >
+      {/* Verdict-colored left bar — the scannable signal (#23), and the same anatomy the evidence
+          card uses (#26): a colored rail down the left edge. Neutral while analyzing or dropped. */}
+      {!dropped && (
+        <span
+          aria-hidden
+          className="absolute bottom-3 left-0 top-3 w-[3px] rounded-full"
+          style={{ background: accent }}
+        />
+      )}
       {IN}
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="flex items-center gap-2">
@@ -310,13 +319,20 @@ function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
   const searching = item.status === "searching";
   return (
     <div
-      className="vt-node relative overflow-hidden rounded-md border bg-[var(--panel-2)] px-3 py-2.5"
+      className="vt-node relative overflow-hidden rounded-md border bg-[var(--panel-2)] py-2.5 pl-4 pr-3"
       style={{
         width: 280,
         borderColor: searching ? "rgba(58,214,230,0.45)" : "var(--line)",
       }}
     >
       {searching && <span className="vt-shimmer pointer-events-none absolute inset-0" />}
+      {/* Left rail for anatomical parity with the claim/evidence cards (#26). Question color is
+          process status, never veracity (ADR): cyan while searching, neutral otherwise. */}
+      <span
+        aria-hidden
+        className="absolute bottom-2.5 left-0 top-2.5 w-[3px] rounded-full"
+        style={{ background: searching ? "var(--accent)" : "var(--ink-4)" }}
+      />
       {IN}
       <div className="relative mb-1.5 flex items-center gap-2">
         <span
