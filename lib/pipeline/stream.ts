@@ -163,7 +163,13 @@ export async function* streamPipeline(
   const checked = claims.filter((c) => !isRelevanceDropped(c));
   const verdicts = checked.map((c) => verdictByClaim.get(c.id) ?? "nei");
   const tally = tallyClaims(verdicts, claims.length - checked.length);
-  yield { type: "source_verdict", verdict: sourceVerdict(verdicts), tally };
+  // Weight the document verdict by each claim's load-bearingness (ADR 0007) so a stray
+  // low-relevance claim can't flip it; cherrypicking needs both sides substantial.
+  const weighted = checked.map((c) => ({
+    verdict: verdictByClaim.get(c.id) ?? "nei",
+    relevanceScore: c.relevanceScore,
+  }));
+  yield { type: "source_verdict", verdict: sourceVerdict(weighted), tally };
   yield { type: "done" };
 }
 

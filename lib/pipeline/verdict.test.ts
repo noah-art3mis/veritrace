@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { claimVerdict, sourceVerdict, tallyClaims } from "./verdict";
-import type { ClaimItem, EvidenceItem, Stance } from "../graph-types";
+import type { ClaimItem, EvidenceItem, Stance, Verdict } from "../graph-types";
 
 // Verdict aggregation is the one piece of "judgement" VERITRACE states rather than
 // learns (PLAN.md). These tests pin the inspectable rule so it can't silently drift.
@@ -55,9 +55,11 @@ describe("claimVerdict", () => {
     expect(claimVerdict(claim(), [evidence("refutes", 0.8)])).toBe("refuted");
   });
 
-  it("returns conflicting when confident support AND refutation coexist", () => {
+  it("returns nei (inconclusive), not conflicting, when support AND refutation coexist (ADR 0007)", () => {
+    // A single atomic claim with deciding evidence both ways is inconclusive — the ivermectin /
+    // border-barriers case. Cherrypicking (`conflicting`) is a document-level property only.
     const ev = [evidence("supports", 0.8), evidence("refutes", 0.8)];
-    expect(claimVerdict(claim(), ev)).toBe("conflicting");
+    expect(claimVerdict(claim(), ev)).toBe("nei");
   });
 
   it("returns nei when only contextual evidence is present", () => {
@@ -110,9 +112,12 @@ describe("claimVerdict", () => {
   });
 });
 
-describe("sourceVerdict", () => {
+describe("sourceVerdict (relevance-weighted, ADR 0007)", () => {
+  // Sugar: build weighted entries; relevanceScore defaults to 1 (equal weight) when omitted.
+  const v = (verdict: Verdict, relevanceScore = 1) => ({ verdict, relevanceScore });
+
   it("returns nei when every claim is nei", () => {
-    expect(sourceVerdict(["nei", "nei"])).toBe("nei");
+    expect(sourceVerdict([v("nei"), v("nei")])).toBe("nei");
   });
 
   it("returns nei for an empty claim set", () => {
@@ -121,27 +126,38 @@ describe("sourceVerdict", () => {
 
   it("excludes nei claims rather than letting them dominate", () => {
     // One unverifiable fragment must not sink an otherwise-supported document.
-    expect(sourceVerdict(["supported", "nei"])).toBe("supported");
+    expect(sourceVerdict([v("supported"), v("nei")])).toBe("supported");
   });
 
   it("returns supported when all resolved claims are supported", () => {
-    expect(sourceVerdict(["supported", "supported"])).toBe("supported");
+    expect(sourceVerdict([v("supported"), v("supported")])).toBe("supported");
   });
 
   it("returns refuted when all resolved claims are refuted", () => {
-    expect(sourceVerdict(["refuted", "refuted"])).toBe("refuted");
+    expect(sourceVerdict([v("refuted"), v("refuted")])).toBe("refuted");
   });
 
-  it("surfaces a mixed supported+refuted document as conflicting (the El Mencho hero case)", () => {
-    expect(sourceVerdict(["supported", "refuted", "nei"])).toBe("conflicting");
+  it("surfaces a balanced supported+refuted document as conflicting (the El Mencho hero case)", () => {
+    // Both sides equally load-bearing → genuine cherrypicking.
+    expect(sourceVerdict([v("supported", 0.8), v("refuted", 0.8), v("nei")])).toBe("conflicting");
   });
 
-  it("propagates a single conflicting claim to the document level", () => {
-    expect(sourceVerdict(["supported", "conflicting"])).toBe("conflicting");
+  it("treats sides within the conflict ratio as cherrypicking", () => {
+    // minority 0.5 ≥ 0.5 × majority 1.0 → both sides count → conflicting.
+    expect(sourceVerdict([v("supported", 1.0), v("refuted", 0.5)])).toBe("conflicting");
   });
 
-  it("returns conflicting when a lone conflicting claim is the only resolved one", () => {
-    expect(sourceVerdict(["nei", "conflicting"])).toBe("conflicting");
+  it("does not let a lone low-relevance refuted claim flip a load-bearing supported document", () => {
+    // minority 0.3 < 0.5 × majority 1.0 → lopsided → the settled central claim wins (#53).
+    expect(sourceVerdict([v("supported", 1.0), v("refuted", 0.3)])).toBe("supported");
+  });
+
+  it("symmetric: a lone low-relevance supported claim does not flip a refuted document", () => {
+    expect(sourceVerdict([v("refuted", 1.0), v("supported", 0.3)])).toBe("refuted");
+  });
+
+  it("defaults missing relevance to equal weight (any support + any refute → conflicting)", () => {
+    expect(sourceVerdict([{ verdict: "supported" }, { verdict: "refuted" }])).toBe("conflicting");
   });
 });
 
