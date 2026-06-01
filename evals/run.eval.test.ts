@@ -23,9 +23,15 @@ import { createExaSearch } from "@/lib/exa";
 import { DEFAULT_CONFIG } from "@/lib/run-config";
 
 const hasKeys = !!process.env.ANTHROPIC_API_KEY && !!process.env.EXA_API_KEY;
-const smokePath = fileURLToPath(new URL("./golden/smoke.jsonl", import.meta.url));
+// EVAL_FILE selects the gold set under evals/golden/ (default the committed smoke set); pass a
+// bare filename or an absolute path. EVAL_LIMIT caps how many golds run.
+const evalFile = process.env.EVAL_FILE ?? "smoke.jsonl";
+const goldPath = evalFile.startsWith("/")
+  ? evalFile
+  : fileURLToPath(new URL(`./golden/${evalFile}`, import.meta.url));
+const setName = evalFile.replace(/^.*\//, "").replace(/\.jsonl$/, "");
 
-describe.skipIf(!hasKeys)("smoke-set eval (live pipeline)", () => {
+describe.skipIf(!hasKeys)("gold-set eval (live pipeline)", () => {
   it(
     "scores every gold and reports accuracy overall + by de-novo/provenance slice",
     async () => {
@@ -44,7 +50,7 @@ describe.skipIf(!hasKeys)("smoke-set eval (live pipeline)", () => {
         maxQuestions: config.maxQuestions,
       };
 
-      const golds = loadGolden(smokePath);
+      const golds = loadGolden(goldPath);
       const limit = process.env.EVAL_LIMIT ? Number(process.env.EVAL_LIMIT) : golds.length;
       const subset = golds.slice(0, limit);
 
@@ -54,7 +60,7 @@ describe.skipIf(!hasKeys)("smoke-set eval (live pipeline)", () => {
       const denovo = items.filter(isDeNovoCheckable);
       const provenance = items.filter((i) => !isDeNovoCheckable(i));
 
-      const out = [formatReport(overall, `smoke — all (${items.length})`)];
+      const out = [formatReport(overall, `${setName} — all (${items.length})`)];
       if (denovo.length)
         out.push(formatReport(scoreReport(denovo), `de-novo-checkable (${denovo.length})`));
       if (provenance.length)
@@ -73,8 +79,10 @@ describe.skipIf(!hasKeys)("smoke-set eval (live pipeline)", () => {
 
       // Persist the FULL per-claim detail (verdict + rationale + evidence stances) so a low
       // score can be diagnosed qualitatively — the console report only carries verdicts.
-      const resultsPath = fileURLToPath(new URL("./golden/last-run.results.json", import.meta.url));
-      writeResults(resultsPath, { model: config.model, report: overall, items });
+      const resultsPath = fileURLToPath(
+        new URL(`./golden/${setName}.results.json`, import.meta.url),
+      );
+      writeResults(resultsPath, { model: config.model, set: setName, report: overall, items });
       console.log(`full per-claim detail → ${resultsPath}`);
 
       // Stable assertions (the numbers themselves vary run-to-run, so we don't gate on them):
@@ -87,6 +95,6 @@ describe.skipIf(!hasKeys)("smoke-set eval (live pipeline)", () => {
         true,
       );
     },
-    20 * 60_000, // up to 20 min: a full live run of all 12 golds (claim → search → verdict).
+    60 * 60_000, // generous: a live run is ~20-30s/gold, and a larger EVAL_FILE can be 40+.
   );
 });

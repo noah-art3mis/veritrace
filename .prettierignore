@@ -6,7 +6,6 @@ coverage/
 public/
 demo-corpus/
 NOTES/
-evals/golden/raw/
 evals/golden/*.jsonl
 evals/golden/*.results.json
 *.tsbuildinfo
