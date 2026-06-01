@@ -63,6 +63,13 @@ export interface ClaimItem {
    * Absent = relevant (the default), so existing claims need no migration.
    */
   relevant?: boolean;
+  /**
+   * The triage relevance score (0..1) — how load-bearing/contested the claim is. Drives
+   * which claims are searched: `capSearchable` keeps the top `maxClaims` by this score and
+   * derives `relevant` from the result (ADR 0005). Shown for display/ordering; absent on
+   * non-triaged claims (treated as fully relevant).
+   */
+  relevanceScore?: number;
   /** Event date (ISO YYYY-MM-DD) parsed from the source — bounds the retrieval window. */
   date?: string;
   /** Proper nouns / numbers the decontextualizer injected that are absent from the source (over-specification audit). */
