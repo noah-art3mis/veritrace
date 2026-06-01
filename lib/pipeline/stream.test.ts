@@ -279,8 +279,23 @@ describe("collectGraph", () => {
     expect(graph.source.verdict).toBe("supported");
   });
 
-  it("aggregates a mixed support+refute document to conflicting end-to-end", async () => {
-    // One claim whose two questions return opposing evidence → claim conflicting → source conflicting.
+  it("aggregates a cherrypicking document (one supported + one refuted claim) to conflicting (ADR 0007)", async () => {
+    // Cherrypicking is a DOCUMENT property: two equally load-bearing claims pulling opposite ways.
+    extractClaims.mockResolvedValue([claim("c1"), claim("c2")]);
+    generateQuestions.mockImplementation(async (c: ClaimItem) => [question(c.id, 1)]);
+    resolveQuestion.mockImplementation(async (_c: ClaimItem, q: QuestionItem) =>
+      resolved([evidence(q.id, q.claimId === "c1" ? "supports" : "refutes")]),
+    );
+
+    const graph = await collectGraph("post", deps);
+    expect(graph.claims.find((c) => c.id === "c1")!.verdict).toBe("supported");
+    expect(graph.claims.find((c) => c.id === "c2")!.verdict).toBe("refuted");
+    expect(graph.source.verdict).toBe("conflicting");
+  });
+
+  it("resolves a single claim with opposing evidence to nei, not conflicting, end-to-end (ADR 0007)", async () => {
+    // One atomic claim whose two questions return opposing evidence is inconclusive — the
+    // ivermectin / border-barriers case — never claim-level conflicting.
     extractClaims.mockResolvedValue([claim("c1")]);
     generateQuestions.mockResolvedValue([question("c1", 1), question("c1", 2)]);
     resolveQuestion.mockImplementation(async (_c: ClaimItem, q: QuestionItem) =>
@@ -288,8 +303,8 @@ describe("collectGraph", () => {
     );
 
     const graph = await collectGraph("post", deps);
-    expect(graph.claims[0].verdict).toBe("conflicting");
-    expect(graph.source.verdict).toBe("conflicting");
+    expect(graph.claims[0].verdict).toBe("nei");
+    expect(graph.source.verdict).toBe("nei");
   });
 
   it("leaves a relevance-dropped claim unverdicted and counts it as dropped, not NEI", async () => {

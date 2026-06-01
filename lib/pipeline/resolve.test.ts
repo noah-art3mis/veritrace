@@ -210,8 +210,9 @@ describe("rankAndCapEvidence", () => {
   });
 
   it("preserves the verdict across the cap by keeping the top deciding support and refute", () => {
-    // 8 deciding supports would crowd out the lone refute on a naive top-N slice, flipping
-    // a Conflicting claim to Supported. The cap must retain the deciding refute.
+    // 8 deciding supports would crowd out the lone refute on a naive top-N slice, flipping the
+    // claim's verdict from NEI (mixed evidence is inconclusive — ADR 0007) to a false Supported.
+    // The cap must retain the deciding refute so the verdict is preserved.
     const supports = Array.from({ length: 8 }, (_, i) =>
       evidence("supports", `s${i}.com`, "high", "primary"),
     );
@@ -220,9 +221,9 @@ describe("rankAndCapEvidence", () => {
     const capped = rankAndCapEvidence(full, 4);
     expect(capped).toHaveLength(4);
     expect(capped.some((e) => e.stance === "refutes")).toBe(true);
-    // Verdict on the capped set matches the verdict on the full set.
+    // Verdict on the capped set matches the verdict on the full set — NEI, not a false Supported.
     expect(claimVerdict(claim(), capped)).toBe(claimVerdict(claim(), full));
-    expect(claimVerdict(claim(), capped)).toBe("conflicting");
+    expect(claimVerdict(claim(), capped)).toBe("nei");
   });
 });
 
