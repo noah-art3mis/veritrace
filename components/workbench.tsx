@@ -7,9 +7,11 @@ import { SettingsPanel, DEFAULT_SETTINGS, type Settings } from "./settings-panel
 import { useIsMobile } from "./use-is-mobile";
 import { MODELS, supportsTemperature } from "@/lib/run-config";
 import { MOCK_GRAPH } from "@/lib/mock-graph";
-import type { FactGraph } from "@/lib/graph-types";
+import type { FactGraph, ClaimItem } from "@/lib/graph-types";
 import type { PipelineEvent } from "@/lib/pipeline/events";
 import { applyEvent, emptyGraph } from "@/lib/apply-event";
+import { sourceVerdict, tallyClaims } from "@/lib/pipeline/verdict";
+import { isRelevanceDropped } from "@/lib/pipeline/claim-status";
 
 // Persist run settings (model / temperature / thinking + the user's optional API keys)
 // in this browser, so a tester's configuration survives reloads.
@@ -192,6 +194,75 @@ export default function Workbench() {
     }
   }
 
+  // Recompute the source-level verdict + tally from the current per-claim verdicts (ADR 0007's
+  // relevance-weighted rule). Used after a claim is re-included so the document headline + ratio
+  // reflect the newly-checked claim. Dropped claims are excluded from the aggregate and the "of N".
+  function withRecomputedSource(g: FactGraph): FactGraph {
+    const checked = g.claims.filter((c) => !isRelevanceDropped(c));
+    const verdicts = checked.map((c) => c.verdict ?? "nei");
+    const weighted = checked.map((c) => ({
+      verdict: c.verdict ?? "nei",
+      relevanceScore: c.relevanceScore,
+    }));
+    return {
+      ...g,
+      source: {
+        ...g.source,
+        verdict: sourceVerdict(weighted),
+        tally: tallyClaims(verdicts, g.claims.length - checked.length),
+      },
+    };
+  }
+
+  // Re-include a relevance-dropped claim (#33): override the filter, then re-resolve just that
+  // claim (questions → search → verdict) and merge the streamed events into the existing graph.
+  async function reincludeClaim(claim: ClaimItem) {
+    if (loading) return;
+    setError(null);
+    // Optimistically flip it back to searchable + analyzing so the node leaves the dropped style.
+    setGraph((g) => ({
+      ...g,
+      claims: g.claims.map((c) =>
+        c.id === claim.id ? { ...c, relevant: true, verdict: null, rationale: undefined } : c,
+      ),
+    }));
+    try {
+      const res = await fetch("/api/resolve-claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          claim: { id: claim.id, text: claim.text, date: claim.date },
+          config: runConfig(),
+        }),
+      });
+      if (!res.ok || !res.body) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Request failed (${res.status})`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const ev = JSON.parse(line) as PipelineEvent;
+          if (ev.type === "error") throw new Error(ev.message);
+          setGraph((g) => applyEvent(g, ev));
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not re-include the claim");
+    } finally {
+      // Fold the re-included claim's verdict into the document headline + ratio.
+      setGraph((g) => withRecomputedSource(g));
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="vt-reveal border-b border-[var(--line)] bg-[var(--bg-2)]/60 px-6 py-3.5">
@@ -323,6 +394,7 @@ export default function Workbench() {
           showInternals={settings.showInternals}
           showMinimap={settings.showMinimap}
           withholdVerdict={settings.withholdVerdict}
+          onReinclude={reincludeClaim}
         />
         <RunReport
           graph={graph}
