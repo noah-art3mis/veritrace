@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ReactFlow,
   Background,
@@ -73,6 +73,17 @@ export default function FactGraphCanvas({
   // Suggest the radial overview once the card graph crosses the legibility threshold (once).
   const [suggested, setSuggested] = useState(false);
   const suggestRadial = view === "cards" && !suggested && nodes.length > RADIAL_SUGGEST_NODES;
+
+  // React Flow's MiniMap picks shapeRendering ("crispEdges" vs "geometricPrecision") differently
+  // on the server than in the browser, which trips a hydration mismatch. The minimap is purely
+  // decorative and depends on browser layout anyway, so render it only after hydration. We read the
+  // mounted flag via useSyncExternalStore (server snapshot false, client true) rather than a
+  // setState-in-effect, which the react-hooks lint rule forbids.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   return (
     <InternalsContext.Provider value={showInternals}>
@@ -154,7 +165,7 @@ export default function FactGraphCanvas({
           </Panel>
         )}
 
-        {showMinimap && nodes.length <= MINIMAP_MAX_NODES && (
+        {mounted && showMinimap && nodes.length <= MINIMAP_MAX_NODES && (
           <MiniMap
             pannable
             zoomable
