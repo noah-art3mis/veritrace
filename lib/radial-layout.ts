@@ -3,7 +3,7 @@ import type { FactGraph } from "./graph-types";
 import { STANCE_META } from "./visuals";
 import { conflictEdges } from "./graph-to-flow";
 
-// The radial "Constellation" overview layout (ADR 0002). A deterministic radial tidy tree:
+// The radial "Constellation" overview layout (ADR 0003). A deterministic radial tidy tree:
 // Source at the centre, then Claims → Questions → Evidence on concentric rings. Each Claim owns
 // an angular WEDGE sized by its leaf (Evidence) count, which subdivides into its Questions and
 // their Evidence — so a claim's whole subtree is one readable pie-slice and depth == ring.
@@ -22,7 +22,7 @@ export interface RadialPosition {
   diameter: number; // circle size — depth-only encoding (no data on size)
 }
 
-// Depth-only size encoding (ADR 0002): Source largest → Evidence smallest.
+// Depth-only size encoding (ADR 0003): Source largest → Evidence smallest.
 export const CIRCLE_DIAMETER: Record<RadialDepth, number> = { 0: 64, 1: 44, 2: 30, 3: 20 };
 
 // Arc each Evidence slot reserves on the rim (diameter + breathing gap). The outer radius grows

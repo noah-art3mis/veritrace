@@ -2,7 +2,7 @@
 // Radial-view twin of useGraphFlow: same deliberate topology-keyed layout cache (see that file for
 // why the ref-in-useMemo pattern is safe), but it runs radialLayout instead of dagre and shapes
 // each node as a circle. The node `style` carries a transform transition so that when the layout
-// reflows on a streaming tick, React Flow eases each circle to its new slot (ADR 0002's tween;
+// reflows on a streaming tick, React Flow eases each circle to its new slot (ADR 0003's tween;
 // spring/force feel is a later refinement on top of this).
 import { useMemo, useRef } from "react";
 import type { Edge } from "@xyflow/react";

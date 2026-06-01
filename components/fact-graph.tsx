@@ -30,7 +30,7 @@ const MINIMAP_COLOR: Record<string, string> = {
 // thumbnail is an unreadable speckle anyway — so we drop it rather than re-render it per tick.
 const MINIMAP_MAX_NODES = 220;
 
-// Past this many nodes the card graph gets hard to read; suggest the radial overview (ADR 0002).
+// Past this many nodes the card graph gets hard to read; suggest the radial overview (ADR 0003).
 const RADIAL_SUGGEST_NODES = 60;
 
 type ViewMode = "cards" | "radial";
@@ -56,7 +56,7 @@ export default function FactGraphCanvas({
   showMinimap?: boolean;
 }) {
   const [view, setView] = useState<ViewMode>("cards");
-  // Peek-then-open (ADR 0002): hover/first-tap peeks (pinned), second click opens, pane clears.
+  // Peek-then-open (ADR 0003): hover/first-tap peeks (pinned), second click opens, pane clears.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [pinnedId, setPinnedId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);

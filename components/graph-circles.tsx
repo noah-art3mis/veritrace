@@ -13,7 +13,7 @@ import { isDeciding } from "@/lib/pipeline/verdict";
 import { isRelevanceDropped } from "@/lib/pipeline/claim-status";
 import { InternalsContext } from "./graph-nodes";
 
-// The radial "Constellation" view (ADR 0002) renders each node as a coloured circle instead of a
+// The radial "Constellation" view (ADR 0003) renders each node as a coloured circle instead of a
 // card. One channel per signal so a small dot stays legible:
 //   fill   = the layer's semantic axis (Verdict for Source/Claim, Stance for Evidence; Questions
 //            stay neutral/cyan process status — never red/green)
@@ -168,7 +168,7 @@ export const circleNodeTypes: NodeTypes = {
 };
 
 // --- Detail panel ------------------------------------------------------------------------------
-// The peek-then-open surface (ADR 0002). Hover/tap shows the compact head (identity + the colour
+// The peek-then-open surface (ADR 0003). Hover/tap shows the compact head (identity + the colour
 // spelled out in words, so it reads without seeing hue); opening adds the body. This is the
 // non-colour path that keeps the circle view usable on touch and for colourblind users.
 
