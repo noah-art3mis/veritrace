@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import {
   MODELS,
   DEFAULT_MODEL,
@@ -18,6 +19,7 @@ import {
   EXA_CATEGORIES,
   supportsTemperature,
   type ModelId,
+  type ModelInfo,
   type ExaCategory,
 } from "@/lib/run-config";
 
@@ -80,13 +82,63 @@ export const DEFAULT_SETTINGS: Settings = {
 const labelCls = "font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)]";
 const fieldCls =
   "w-full rounded-md border border-[var(--line-2)] bg-[var(--bg)] px-2.5 py-1.5 font-mono text-[11.5px] text-[var(--ink-1)] focus:border-[var(--accent)] focus:outline-none";
+const toggleCls =
+  "inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]";
+const helpCls = "font-mono text-[9px] text-[var(--ink-4)]";
+
+// A topical group within the sidebar — a titled, hairline-separated band of related
+// controls. Streamlit-style: each section owns one concern (model, scope, retrieval…).
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-4">
+      <h3 className="flex items-center gap-2 border-b border-[var(--line)] pb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--ink-2)]">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+// A small on/off pill toggle. Used for the boolean settings throughout the sidebar.
+function Toggle({
+  checked,
+  onClick,
+  onLabel = "On",
+  offLabel = "Off",
+}: {
+  checked: boolean;
+  onClick: () => void;
+  onLabel?: string;
+  offLabel?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onClick}
+      className={toggleCls}
+    >
+      <span
+        className="h-2.5 w-2.5 rounded-full transition-colors"
+        style={{ background: checked ? "var(--accent)" : "var(--line-2)" }}
+      />
+      {checked ? onLabel : offLabel}
+    </button>
+  );
+}
 
 export function SettingsPanel({
   settings,
   onChange,
+  open,
+  onClose,
 }: {
   settings: Settings;
   onChange: (next: Settings) => void;
+  open: boolean;
+  onClose: () => void;
 }) {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value });
@@ -97,350 +149,339 @@ export function SettingsPanel({
   const modelDeprecatesTemp = !supportsTemperature(settings.model);
   const tempInert = settings.thinking || modelDeprecatesTemp;
 
+  // Escape closes the drawer while it's open.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   return (
-    // Cap the panel height and let it scroll within itself. On mobile every control stacks
-    // into one tall column that otherwise runs off the bottom of the screen with no way to
-    // reach the lower toggles + API keys (#5). On desktop the 4-col grid is short, so the cap
-    // never engages and no scrollbar appears.
-    <div className="grid max-h-[70vh] gap-4 overflow-y-auto overscroll-contain rounded-lg border border-[var(--line-2)] bg-[var(--bg)]/60 p-4 sm:grid-cols-2 lg:grid-cols-4">
-      {/* Model */}
-      <div className="flex flex-col gap-1.5">
-        <label className={labelCls}>Model</label>
-        <select
-          value={settings.model}
-          onChange={(e) => set("model", e.target.value as ModelId)}
-          className={fieldCls}
-        >
-          {(Object.entries(MODELS) as [ModelId, string][]).map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </div>
+    <>
+      {/* Scrim — dims the workbench and closes the drawer on click. */}
+      <div
+        onClick={onClose}
+        aria-hidden
+        className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 ${
+          open ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
 
-      {/* Temperature */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-baseline justify-between">
-          <label className={labelCls}>Temperature</label>
-          <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
-            {modelDeprecatesTemp
-              ? "n/a · model default"
-              : settings.thinking
-                ? "1.0 · thinking"
-                : settings.temperature.toFixed(2)}
+      {/* The sidebar itself — a full-height drawer that slides in from the right. */}
+      <aside
+        aria-hidden={!open}
+        aria-label="Run settings"
+        className={`fixed right-0 top-0 z-50 flex h-full w-[360px] max-w-[92vw] flex-col border-l border-[var(--line-2)] bg-[var(--bg-2)] shadow-[0_0_60px_rgba(0,0,0,0.6)] transition-transform duration-300 ${
+          open ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
+          <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-[var(--ink-1)]">
+            ⚙ Settings
           </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close settings"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--line-2)] bg-[var(--panel)] font-mono text-[12px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)]"
+          >
+            ✕
+          </button>
         </div>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={settings.temperature}
-          disabled={tempInert}
-          onChange={(e) => set("temperature", Number(e.target.value))}
-          className="w-full accent-[var(--accent)] disabled:opacity-40"
-        />
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          {modelDeprecatesTemp
-            ? "this model samples at its default — temperature is not configurable"
-            : settings.thinking
-              ? "fixed at 1 while extended thinking is on"
-              : "0 = deterministic · 1 = most varied"}
-        </span>
-      </div>
 
-      {/* Claims to extract — the legibility cap the graph grows from */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-baseline justify-between">
-          <label className={labelCls}>Claims to extract</label>
-          <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
-            up to {settings.maxClaims}
-          </span>
+        {/* Scrollable body — the sections stack vertically, one concern per band. */}
+        <div className="flex flex-1 flex-col gap-7 overflow-y-auto px-5 py-5">
+          {/* ── Model ───────────────────────────────────────────────── */}
+          <Section title="Model">
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Model</label>
+              <select
+                value={settings.model}
+                onChange={(e) => set("model", e.target.value as ModelId)}
+                className={fieldCls}
+              >
+                {(Object.entries(MODELS) as [ModelId, ModelInfo][]).map(([id, info]) => (
+                  <option key={id} value={id}>
+                    {info.label} · ${info.inputCost}/${info.outputCost} per 1M
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Temperature */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-baseline justify-between">
+                <label className={labelCls}>Temperature</label>
+                <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
+                  {modelDeprecatesTemp
+                    ? "n/a · model default"
+                    : settings.thinking
+                      ? "1.0 · thinking"
+                      : settings.temperature.toFixed(2)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={settings.temperature}
+                disabled={tempInert}
+                onChange={(e) => set("temperature", Number(e.target.value))}
+                className="w-full accent-[var(--accent)] disabled:opacity-40"
+              />
+              <span className={helpCls}>
+                {modelDeprecatesTemp
+                  ? "this model samples at its default — temperature is not configurable"
+                  : settings.thinking
+                    ? "fixed at 1 while extended thinking is on"
+                    : "0 = deterministic · 1 = most varied"}
+              </span>
+            </div>
+
+            {/* Extended thinking */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Extended thinking</label>
+              <Toggle
+                checked={settings.thinking}
+                onClick={() => set("thinking", !settings.thinking)}
+              />
+            </div>
+          </Section>
+
+          {/* ── Graph scope ─────────────────────────────────────────── */}
+          <Section title="Graph scope">
+            {/* Claims to extract — the legibility cap the graph grows from */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-baseline justify-between">
+                <label className={labelCls}>Claims to extract</label>
+                <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
+                  up to {settings.maxClaims}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={MIN_CLAIMS}
+                max={MAX_CLAIMS}
+                step={1}
+                value={settings.maxClaims}
+                onChange={(e) => set("maxClaims", Number(e.target.value))}
+                className="w-full accent-[var(--accent)]"
+              />
+              <span className={helpCls}>
+                legibility cap · more claims = denser graph, slower run
+              </span>
+            </div>
+
+            {/* Questions per claim — the second graph multiplier (claims × questions × sources) */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-baseline justify-between">
+                <label className={labelCls}>Questions per claim</label>
+                <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
+                  up to {settings.maxQuestions}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={MIN_QUESTIONS}
+                max={MAX_QUESTIONS}
+                step={1}
+                value={settings.maxQuestions}
+                onChange={(e) => set("maxQuestions", Number(e.target.value))}
+                className="w-full accent-[var(--accent)]"
+              />
+              <span className={helpCls}>resolving questions each claim fans out into</span>
+            </div>
+
+            {/* Sources per search — the third graph multiplier (Exa numResults) */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-baseline justify-between">
+                <label className={labelCls}>Sources per search</label>
+                <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
+                  up to {settings.maxSources}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={MIN_SOURCES}
+                max={MAX_SOURCES}
+                step={1}
+                value={settings.maxSources}
+                onChange={(e) => set("maxSources", Number(e.target.value))}
+                className="w-full accent-[var(--accent)]"
+              />
+              <span className={helpCls}>
+                evidence cards retrieved per query · the populous rank
+              </span>
+            </div>
+
+            {/* Read depth — how much of each source's text the classifier sees (Exa text chars) */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-baseline justify-between">
+                <label className={labelCls}>Read depth</label>
+                <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
+                  {settings.maxChars.toLocaleString()} chars
+                </span>
+              </div>
+              <input
+                type="range"
+                min={MIN_CHARS}
+                max={MAX_CHARS}
+                step={200}
+                value={settings.maxChars}
+                onChange={(e) => set("maxChars", Number(e.target.value))}
+                className="w-full accent-[var(--accent)]"
+              />
+              <span className={helpCls}>
+                chars of each source read · billed per page, so deeper is ~free
+              </span>
+            </div>
+          </Section>
+
+          {/* ── Retrieval ───────────────────────────────────────────── */}
+          <Section title="Retrieval">
+            {/* Deep search — Exa's agentic retrieval; opt-in for hard / low-coverage claims */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Deep search</label>
+              <Toggle
+                checked={settings.deepSearch}
+                onClick={() => set("deepSearch", !settings.deepSearch)}
+              />
+              <span className={helpCls}>
+                agentic multi-step retrieval · higher recall, slower, pricier
+              </span>
+            </div>
+
+            {/* Source category — optional Exa content filter; cleaner extraction, narrower recall */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Source category</label>
+              <select
+                value={settings.category}
+                onChange={(e) => set("category", e.target.value as ExaCategory | "")}
+                className={fieldCls}
+              >
+                <option value="">Any source</option>
+                {EXA_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c[0].toUpperCase() + c.slice(1)}
+                  </option>
+                ))}
+              </select>
+              <span className={helpCls}>
+                restrict retrieval · cleaner extraction, but narrows recall
+              </span>
+            </div>
+
+            {/* Content freshness — opt into live crawling instead of Exa's cache */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Prefer fresh content</label>
+              <Toggle
+                checked={settings.preferFresh}
+                onClick={() => set("preferFresh", !settings.preferFresh)}
+                onLabel="Live crawl"
+                offLabel="Cached"
+              />
+              <span className={helpCls}>
+                live-crawl over cache · fresher for breaking news, but slower
+              </span>
+            </div>
+
+            {/* Fact-check short-circuit — resolve a claim from an existing fact-checker verdict */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Fact-check short-circuit</label>
+              <Toggle
+                checked={settings.factCheckShortCircuit}
+                onClick={() => set("factCheckShortCircuit", !settings.factCheckShortCircuit)}
+              />
+              <span className={helpCls}>
+                resolve a claim from an existing Google Fact Check verdict, skipping de-novo
+                retrieval
+              </span>
+            </div>
+          </Section>
+
+          {/* ── Display ─────────────────────────────────────────────── */}
+          <Section title="Display">
+            {/* Show pipeline internals — display-only; reveals hidden retrieval steps in the graph */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Show pipeline internals</label>
+              <Toggle
+                checked={settings.showInternals}
+                onClick={() => set("showInternals", !settings.showInternals)}
+              />
+              <span className={helpCls}>
+                HyDE seed, agent queries + summary, stance confidence, raw fragment.
+              </span>
+            </div>
+
+            {/* Minimap — display-only; the navigator thumbnail in the graph corner */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Minimap</label>
+              <Toggle
+                checked={settings.showMinimap}
+                onClick={() => set("showMinimap", !settings.showMinimap)}
+              />
+              <span className={helpCls}>navigator thumbnail in the graph corner</span>
+            </div>
+
+            {/* Withhold verdict — hide the machine's aggregate verdict so the user concludes */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Withhold verdict</label>
+              <Toggle
+                checked={settings.withholdVerdict}
+                onClick={() => set("withholdVerdict", !settings.withholdVerdict)}
+              />
+              <span className={helpCls}>
+                hide the machine&apos;s aggregate verdict so you read the evidence and conclude
+                yourself
+              </span>
+            </div>
+          </Section>
+
+          {/* ── API keys ────────────────────────────────────────────── */}
+          <Section title="API keys">
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Optional · stored in this browser</label>
+              <div className="flex flex-col gap-2">
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={settings.anthropicKey}
+                  onChange={(e) => set("anthropicKey", e.target.value)}
+                  placeholder="ANTHROPIC_API_KEY · blank uses server default"
+                  className={fieldCls}
+                />
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={settings.exaKey}
+                  onChange={(e) => set("exaKey", e.target.value)}
+                  placeholder="EXA_API_KEY · blank uses server default"
+                  className={fieldCls}
+                />
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={settings.googleFactCheckKey}
+                  onChange={(e) => set("googleFactCheckKey", e.target.value)}
+                  placeholder="GOOGLE_FACT_CHECK_API_KEY · blank uses server default"
+                  className={fieldCls}
+                />
+              </div>
+              <span className={helpCls}>
+                Sent only with your check requests and used in-memory; never stored on the server.
+              </span>
+            </div>
+          </Section>
         </div>
-        <input
-          type="range"
-          min={MIN_CLAIMS}
-          max={MAX_CLAIMS}
-          step={1}
-          value={settings.maxClaims}
-          onChange={(e) => set("maxClaims", Number(e.target.value))}
-          className="w-full accent-[var(--accent)]"
-        />
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          legibility cap · more claims = denser graph, slower run
-        </span>
-      </div>
-
-      {/* Questions per claim — the second graph multiplier (claims × questions × sources) */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-baseline justify-between">
-          <label className={labelCls}>Questions per claim</label>
-          <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
-            up to {settings.maxQuestions}
-          </span>
-        </div>
-        <input
-          type="range"
-          min={MIN_QUESTIONS}
-          max={MAX_QUESTIONS}
-          step={1}
-          value={settings.maxQuestions}
-          onChange={(e) => set("maxQuestions", Number(e.target.value))}
-          className="w-full accent-[var(--accent)]"
-        />
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          resolving questions each claim fans out into
-        </span>
-      </div>
-
-      {/* Sources per search — the third graph multiplier (Exa numResults) */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-baseline justify-between">
-          <label className={labelCls}>Sources per search</label>
-          <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
-            up to {settings.maxSources}
-          </span>
-        </div>
-        <input
-          type="range"
-          min={MIN_SOURCES}
-          max={MAX_SOURCES}
-          step={1}
-          value={settings.maxSources}
-          onChange={(e) => set("maxSources", Number(e.target.value))}
-          className="w-full accent-[var(--accent)]"
-        />
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          evidence cards retrieved per query · the populous rank
-        </span>
-      </div>
-
-      {/* Read depth — how much of each source's text the classifier sees (Exa text chars) */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-baseline justify-between">
-          <label className={labelCls}>Read depth</label>
-          <span className="font-mono text-[10.5px] text-[var(--ink-2)]">
-            {settings.maxChars.toLocaleString()} chars
-          </span>
-        </div>
-        <input
-          type="range"
-          min={MIN_CHARS}
-          max={MAX_CHARS}
-          step={200}
-          value={settings.maxChars}
-          onChange={(e) => set("maxChars", Number(e.target.value))}
-          className="w-full accent-[var(--accent)]"
-        />
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          chars of each source read · billed per page, so deeper is ~free
-        </span>
-      </div>
-
-      {/* Deep search — Exa's agentic retrieval; opt-in for hard / low-coverage claims */}
-      <div className="flex flex-col gap-1.5">
-        <label className={labelCls}>Deep search</label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={settings.deepSearch}
-          onClick={() => set("deepSearch", !settings.deepSearch)}
-          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
-        >
-          <span
-            className="h-2.5 w-2.5 rounded-full transition-colors"
-            style={{ background: settings.deepSearch ? "var(--accent)" : "var(--line-2)" }}
-          />
-          {settings.deepSearch ? "On" : "Off"}
-        </button>
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          agentic multi-step retrieval · higher recall, slower, pricier
-        </span>
-      </div>
-
-      {/* Source category — optional Exa content filter; cleaner extraction, narrower recall */}
-      <div className="flex flex-col gap-1.5">
-        <label className={labelCls}>Source category</label>
-        <select
-          value={settings.category}
-          onChange={(e) => set("category", e.target.value as ExaCategory | "")}
-          className={fieldCls}
-        >
-          <option value="">Any source</option>
-          {EXA_CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c[0].toUpperCase() + c.slice(1)}
-            </option>
-          ))}
-        </select>
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          restrict retrieval · cleaner extraction, but narrows recall
-        </span>
-      </div>
-
-      {/* Content freshness — opt into live crawling instead of Exa's cache */}
-      <div className="flex flex-col gap-1.5">
-        <label className={labelCls}>Prefer fresh content</label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={settings.preferFresh}
-          onClick={() => set("preferFresh", !settings.preferFresh)}
-          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
-        >
-          <span
-            className="h-2.5 w-2.5 rounded-full transition-colors"
-            style={{ background: settings.preferFresh ? "var(--accent)" : "var(--line-2)" }}
-          />
-          {settings.preferFresh ? "Live crawl" : "Cached"}
-        </button>
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          live-crawl over cache · fresher for breaking news, but slower
-        </span>
-      </div>
-
-      {/* Fact-check short-circuit — opt-in; skips retrieval when a published verdict already exists */}
-      <div className="flex flex-col gap-1.5">
-        <label className={labelCls}>Fact-check short-circuit</label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={settings.factCheckShortCircuit}
-          onClick={() => set("factCheckShortCircuit", !settings.factCheckShortCircuit)}
-          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
-        >
-          <span
-            className="h-2.5 w-2.5 rounded-full transition-colors"
-            style={{
-              background: settings.factCheckShortCircuit ? "var(--accent)" : "var(--line-2)",
-            }}
-          />
-          {settings.factCheckShortCircuit ? "On" : "Off"}
-        </button>
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          skip retrieval when Google Fact Check already has a verdict · off = full de-novo run
-        </span>
-      </div>
-
-      {/* Extended thinking */}
-      <div className="flex flex-col gap-1.5">
-        <label className={labelCls}>Extended thinking</label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={settings.thinking}
-          onClick={() => set("thinking", !settings.thinking)}
-          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
-        >
-          <span
-            className="h-2.5 w-2.5 rounded-full transition-colors"
-            style={{ background: settings.thinking ? "var(--accent)" : "var(--line-2)" }}
-          />
-          {settings.thinking ? "On" : "Off"}
-        </button>
-      </div>
-
-      {/* Show pipeline internals — display-only; reveals hidden retrieval steps in the graph */}
-      <div className="flex flex-col gap-1.5">
-        <label className={labelCls}>Show pipeline internals</label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={settings.showInternals}
-          onClick={() => set("showInternals", !settings.showInternals)}
-          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
-        >
-          <span
-            className="h-2.5 w-2.5 rounded-full transition-colors"
-            style={{ background: settings.showInternals ? "var(--accent)" : "var(--line-2)" }}
-          />
-          {settings.showInternals ? "On" : "Off"}
-        </button>
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          HyDE seed, agent queries + summary, stance confidence, raw fragment.
-        </span>
-      </div>
-
-      {/* Withhold verdict — display-only; hides the machine's aggregate verdict so the
-          Fact-checker reaches their own conclusion (CONTEXT.md: the human makes the final verdict) */}
-      <div className="flex flex-col gap-1.5">
-        <label className={labelCls}>Withhold verdict</label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={settings.withholdVerdict}
-          onClick={() => set("withholdVerdict", !settings.withholdVerdict)}
-          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
-        >
-          <span
-            className="h-2.5 w-2.5 rounded-full transition-colors"
-            style={{ background: settings.withholdVerdict ? "var(--accent)" : "var(--line-2)" }}
-          />
-          {settings.withholdVerdict ? "Withheld" : "Shown"}
-        </button>
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          hide the machine&rsquo;s verdict · read the evidence and decide yourself
-        </span>
-      </div>
-
-      {/* Minimap — display-only; the navigator thumbnail in the graph corner */}
-      <div className="flex flex-col gap-1.5">
-        <label className={labelCls}>Minimap</label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={settings.showMinimap}
-          onClick={() => set("showMinimap", !settings.showMinimap)}
-          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
-        >
-          <span
-            className="h-2.5 w-2.5 rounded-full transition-colors"
-            style={{ background: settings.showMinimap ? "var(--accent)" : "var(--line-2)" }}
-          />
-          {settings.showMinimap ? "On" : "Off"}
-        </button>
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          navigator thumbnail in the graph corner
-        </span>
-      </div>
-
-      {/* API keys */}
-      <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-4">
-        <label className={labelCls}>Your API keys · optional, stored in this browser</label>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <input
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            value={settings.anthropicKey}
-            onChange={(e) => set("anthropicKey", e.target.value)}
-            placeholder="ANTHROPIC_API_KEY · blank uses server default"
-            className={fieldCls}
-          />
-          <input
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            value={settings.exaKey}
-            onChange={(e) => set("exaKey", e.target.value)}
-            placeholder="EXA_API_KEY · blank uses server default"
-            className={fieldCls}
-          />
-          <input
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            value={settings.googleFactCheckKey}
-            onChange={(e) => set("googleFactCheckKey", e.target.value)}
-            placeholder="GOOGLE_FACT_CHECK_API_KEY · only used when short-circuit is on"
-            className={`${fieldCls} sm:col-span-2`}
-          />
-        </div>
-        <span className="font-mono text-[9px] text-[var(--ink-4)]">
-          Sent only with your check requests and used in-memory; never stored on the server.
-        </span>
-      </div>
-    </div>
+      </aside>
+    </>
   );
 }

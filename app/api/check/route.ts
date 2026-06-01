@@ -1,8 +1,11 @@
 import { streamPipeline } from "@/lib/pipeline/stream";
-import { createAnthropic } from "@/lib/anthropic";
-import { createExaSearch } from "@/lib/exa";
+import { createReasoner } from "@/lib/reasoner";
+import { createSearchProvider } from "@/lib/search";
+import { createReranker } from "@/lib/pipeline/rerank";
 import { createFactCheckLookup } from "@/lib/factcheck";
 import { parseConfig } from "@/lib/run-config";
+import { apiRateLimiter, clientIp } from "@/lib/rate-limit";
+import { friendlyProviderError } from "@/lib/provider-errors";
 
 // The pipeline calls Anthropic + Exa, so it must run on the Node runtime and is
 // inherently dynamic (never cached). It streams events as NDJSON so the client can
@@ -20,6 +23,20 @@ const EVIDENCE_STAGGER_MS = 80;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export async function POST(request: Request) {
+  // Per-IP rate limit (in-memory, per-instance). A check kicks off a heavy fan-out, so this
+  // blunts accidental hammering before any work starts. The provider's hard-spend cap is the
+  // real ceiling (see lib/rate-limit.ts).
+  const rl = apiRateLimiter.check(clientIp(request));
+  if (!rl.ok) {
+    return Response.json(
+      { error: "Too many requests — you're starting checks faster than allowed. Wait a moment." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil((rl.retryAfterMs ?? 1000) / 1000)) },
+      },
+    );
+  }
+
   let body: { text?: unknown; config?: unknown };
   try {
     body = await request.json();
@@ -40,17 +57,22 @@ export async function POST(request: Request) {
   try {
     const config = parseConfig(body.config);
     deps = {
-      ask: createAnthropic(config),
-      search: createExaSearch({
+      ask: createReasoner(config),
+      search: createSearchProvider({
         exaKey: config.exaKey,
         numResults: config.maxSources,
         maxChars: config.maxChars,
         deepSearch: config.deepSearch,
         category: config.category,
         preferFresh: config.preferFresh,
-      }),
+      }).search,
       maxClaims: config.maxClaims,
       maxQuestions: config.maxQuestions,
+      // Opt-in embedding re-rank (#57). Built only when the flag is on AND a Cohere key resolves;
+      // absent otherwise, so the pipeline keeps its no-embeddings de-novo path by default.
+      ...(config.rerank
+        ? { rerank: createReranker({ cohereKey: config.cohereKey }) ?? undefined }
+        : {}),
       // Opt-in fact-check short-circuit. Built only when the flag is on, so leaving it off
       // (the default) means `factCheck` is absent and the pipeline runs fully de novo. A
       // flag-on-but-no-key run throws here and surfaces as a 400, like the other keys.
@@ -76,7 +98,7 @@ export async function POST(request: Request) {
         }
       } catch (err) {
         console.error("[/api/check]", err);
-        send({ type: "error", message: err instanceof Error ? err.message : "Pipeline failed" });
+        send({ type: "error", message: friendlyProviderError(err) });
       } finally {
         controller.close();
       }

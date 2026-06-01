@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { THINKING_BUDGET, supportsTemperature, type RunConfig } from "./run-config";
+import { askJSONWithRepair, type JSONOpts } from "./ask-json";
 
 // Per-request Anthropic access. createAnthropic binds the model, temperature, thinking
 // setting, and API key from one RunConfig, so the whole pipeline can fan out many calls
@@ -33,11 +34,17 @@ export interface ToolLoopResult {
 export interface AnthropicCaller {
   /** Send a single prompt and return the concatenated text of the response. */
   askText(prompt: string, opts?: AskOpts): Promise<string>;
-  /** Ask for JSON and parse it (tolerating fences / surrounding prose). */
-  askJSON<T>(prompt: string, opts?: AskOpts): Promise<T>;
+  /** Ask for JSON and parse it (tolerating fences / surrounding prose), with one repair re-ask. */
+  askJSON<T>(prompt: string, opts?: JSONOpts): Promise<T>;
   /** Run a Claude function-calling loop: the model searches via `tools` until it stops or maxSteps. */
   askWithTools(prompt: string, opts: ToolLoopOpts): Promise<ToolLoopResult>;
 }
+
+// Provider-neutral name for the reasoning seam (ADR 0004). The interface is structurally the
+// `AnthropicCaller` shape — askText / askJSON / askWithTools — and the whole pipeline (`deps.ask`)
+// depends on it, so any backend (Anthropic, an OpenAI-compatible endpoint, …) that implements it
+// drops in. Kept as an alias so existing imports of `AnthropicCaller` stay valid.
+export type ReasoningProvider = AnthropicCaller;
 
 export function createAnthropic(config: RunConfig): AnthropicCaller {
   const apiKey = config.anthropicKey || process.env.ANTHROPIC_API_KEY;
@@ -93,8 +100,8 @@ export function createAnthropic(config: RunConfig): AnthropicCaller {
     return concatText(msg.content);
   }
 
-  async function askJSON<T>(prompt: string, opts: AskOpts = {}): Promise<T> {
-    return parseJSON<T>(await askText(prompt, opts));
+  async function askJSON<T>(prompt: string, opts: JSONOpts = {}): Promise<T> {
+    return askJSONWithRepair<T>(askText, prompt, opts);
   }
 
   async function askWithTools(prompt: string, opts: ToolLoopOpts): Promise<ToolLoopResult> {
@@ -130,22 +137,4 @@ export function createAnthropic(config: RunConfig): AnthropicCaller {
   }
 
   return { askText, askJSON, askWithTools };
-}
-
-function parseJSON<T>(raw: string): T {
-  const trimmed = raw.trim();
-  try {
-    return JSON.parse(trimmed) as T;
-  } catch {
-    // Strip a ```json … ``` fence or surrounding prose, then grab the outermost
-    // bracketed region.
-    const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const body = fenced ? fenced[1] : trimmed;
-    const start = body.search(/[[{]/);
-    const end = Math.max(body.lastIndexOf("]"), body.lastIndexOf("}"));
-    if (start >= 0 && end > start) {
-      return JSON.parse(body.slice(start, end + 1)) as T;
-    }
-    throw new Error(`Could not parse JSON from model output: ${raw.slice(0, 200)}`);
-  }
 }

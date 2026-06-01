@@ -4,6 +4,7 @@ import type { ToolDef } from "../anthropic";
 import type { PipelineDeps } from "./deps";
 import { classifyEvidence } from "./classify";
 import { expandQuery } from "./expand";
+import { reciprocalRankFusion } from "./rrf";
 import { isDeciding } from "./verdict";
 
 // Days of slack around a claim's event date for the retrieval window. The lower bound cuts
@@ -29,7 +30,7 @@ export function dateWindow(date?: string): SearchOptions | undefined {
 // How many model↔search round-trips the gather loop may take before we stop and judge what
 // we have. The model is told to keep searching until it has MIN_DECIDING reliable sources
 // including one primary; this is the hard backstop on that model-driven loop.
-const MAX_SEARCHES = 4;
+const MAX_SEARCHES = 10;
 const MIN_DECIDING = 2;
 
 // The gather agent can emit several searches per turn, so the deduped pile behind one
@@ -38,12 +39,16 @@ const MIN_DECIDING = 2;
 // per-question analogue of the run-config legibility caps (claims / questions / sources).
 const EVIDENCE_PER_QUESTION_CAP = 6;
 
+// When the opt-in embedding re-rank (#57) is on, keep this many top candidates by cosine before
+// classify — a pool wider than the final cap so the stated classify/quality rank still decides.
+const RERANK_POOL = 10;
+
 const GATHER_SYSTEM = `You are the evidence-gathering stage of VERITRACE, resolving ONE question about ONE claim de novo by searching the open web with the search_evidence tool.
 
 How to search:
 - Issue focused, standalone queries (keep the date / place / actor so keyword search anchors).
 - KEEP SEARCHING until you have at least ${MIN_DECIDING} reliable sources that take a CLEAR stance on the claim, INCLUDING at least one PRIMARY source — the originating report, an official statement, or a news wire — not just re-reporting that echoes the viral claim.
-- Vary the angle across calls: the event itself, whether authorities CONFIRMED or DENIED it, and the originating outlet. Don't repeat a query that already returned good results.
+- Vary the angle across calls: the event itself, whether authoritative sources confirm or contradict it, and the originating outlet. Don't repeat a query that already returned good results.
 - Stop once the bar is met, or once reasonable queries are exhausted. Never fabricate — only the tool's results count.
 
 When done, reply with a one-line summary of what you found.`;
@@ -96,20 +101,46 @@ export async function resolveQuestion(
     searchQueries.push(query); // record the actual executed queries for the trace
     // Focus each source's highlight on the question being resolved, not the model's keyword
     // query — the highlight is the card excerpt, so this keeps it on-point.
-    const results = await deps.search(query, { ...window, highlightQuery: question.text });
-    for (const r of results) collected.set(r.url, r); // dedup by url across queries
-    return results;
+    try {
+      const results = await deps.search(query, { ...window, highlightQuery: question.text });
+      for (const r of results) collected.set(r.url, r); // dedup by url across queries
+      return results;
+    } catch (err) {
+      // A search failure (network timeout, Exa 5xx — even after retries) must NOT throw out of
+      // the gather loop, which would abort this question and, via Promise.race, the whole run
+      // (issue #70). Report it to the model so it can try another angle; the question resolves
+      // on whatever else was gathered.
+      return { error: `search failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
   }
 
-  // Seed with a HyDE-expanded query (HerO/HyDE retrieval); the model issues follow-ups.
-  const { seed, hypothetical } = await expandQuery(claim, question, deps.ask);
+  // RRF directional seed (#56, ADR 0008): issue one Exa query per directional hypothetical (plus
+  // the bare question), then fuse the rankings with Reciprocal Rank Fusion — the live-search-API
+  // analogue of HyDE/HerO's embedding-averaging (we fuse rankings, not vectors, so no embeddings).
+  // A source ranked well across directions floats up; a one-query fluke washes out. The model then
+  // drives follow-up searches over the same deduped pool.
+  const { seed, hypothetical, anchors } = await expandQuery(claim, question, deps.ask);
+  const seedQueries = [question.text, ...anchors];
+  const seedRankings = await Promise.all(
+    seedQueries.map((q) => {
+      searchQueries.push(q);
+      return deps
+        .search(q, { ...window, highlightQuery: question.text })
+        .catch(() => [] as RawEvidence[]);
+    }),
+  );
+  for (const r of reciprocalRankFusion(seedRankings, (e) => e.url)) collected.set(r.url, r);
+
   const result = await deps.ask.askWithTools(
-    `Claim: "${claim.text}"\nQuestion: "${question.text}"\n\nA strong first query to run:\n${seed}\n\nGather the evidence that resolves this question.`,
+    `Claim: "${claim.text}"\nQuestion: "${question.text}"\n\nA strong first query to run:\n${seed}\n\n${collected.size} source(s) were already retrieved by directional queries; search for MORE — especially a primary/originating source and the opposing stance.`,
     { system: GATHER_SYSTEM, tools: [SEARCH_TOOL], onTool, maxSteps: MAX_SEARCHES, maxTokens: 600 },
   );
 
   // Drop circular re-reporting that just restates the claim before paying to classify it.
-  const gathered = dropClaimEchoes(claim.text, [...collected.values()]);
+  let gathered = dropClaimEchoes(claim.text, [...collected.values()]);
+  // Opt-in embedding re-rank (#57, ADR 0010): when a reranker is wired, keep the candidates most
+  // similar to the directional hypotheticals before classify. Absent ⇒ no embeddings (the default).
+  if (deps.rerank) gathered = await deps.rerank.rerank(anchors, gathered, RERANK_POOL);
   const classified = await classifyEvidence(claim, question, gathered, deps.ask);
   const evidence = rankAndCapEvidence(classified, EVIDENCE_PER_QUESTION_CAP);
   const trace: QuestionTrace = {
@@ -259,6 +290,13 @@ export function rationaleFor(claim: ClaimItem, verdict: Verdict, evidence: Evide
     // Make the insufficiency self-explaining (Kotonya & Toni; CLUE): say WHY, not just NEI.
     if (evidence.length === 0) {
       return "No primary sources answered this claim's questions.";
+    }
+    // Echo-chamber abstention (#51): reliable sources were found, but every deciding one is
+    // re-reporting — no originating source — so the verdict abstains rather than trust the echo.
+    const deciding = evidence.filter(isDeciding);
+    if (deciding.length > 0 && !deciding.some((e) => e.sourceType === "primary")) {
+      const d = uniqueDomains(deciding);
+      return `Found ${deciding.length} reliable source${deciding.length === 1 ? "" : "s"} (${d}) but all are re-reporting — no primary/originating source to establish the claim.`;
     }
     const found = uniqueDomains(evidence);
     const n = evidence.length;
