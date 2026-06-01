@@ -97,6 +97,16 @@ function Circle({
   );
 }
 
+// Source/claim circles must read as OPAQUE — matching the question circles — so the background
+// grid and connectors don't show through and muddy legibility (#30). The verdict `soft` tint is
+// translucent, so we composite it over the opaque panel: two flat gradient stops of the tint
+// layered on var(--panel-2) yield an opaque fill that still carries the verdict colour. (The
+// verdict is also on the border; `dim` opacity for dropped claims is unaffected — that stays the
+// one meaning of transparency here.)
+function opaqueFill(tint: string): string {
+  return `linear-gradient(0deg, ${tint}, ${tint}), var(--panel-2)`;
+}
+
 /* Source — aggregate Verdict, biggest circle, never starred. */
 function SourceCircle({ data }: NodeProps<SourceNode>) {
   const m = data.item.verdict ? VERDICT_META[data.item.verdict] : null;
@@ -104,7 +114,7 @@ function SourceCircle({ data }: NodeProps<SourceNode>) {
     <Circle
       diameter={CIRCLE_DIAMETER[0]}
       border={m?.color ?? ACCENT}
-      fill={m?.soft ?? "rgba(58,214,230,0.10)"}
+      fill={opaqueFill(m?.soft ?? "rgba(58,214,230,0.10)")}
       pulse={!data.item.verdict}
     />
   );
@@ -117,7 +127,7 @@ function ClaimCircle({ data }: NodeProps<ClaimNode>) {
     <Circle
       diameter={CIRCLE_DIAMETER[1]}
       border={m?.color ?? ACCENT}
-      fill={m?.soft ?? "rgba(58,214,230,0.08)"}
+      fill={opaqueFill(m?.soft ?? "rgba(58,214,230,0.08)")}
       star={data.item.verdict === "refuted"}
       dim={isRelevanceDropped(data.item)}
       pulse={!data.item.verdict && !isRelevanceDropped(data.item)}
