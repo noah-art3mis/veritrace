@@ -120,6 +120,19 @@ describe("rationaleFor", () => {
     expect(text).toMatch(/none cleared the reliability/i);
   });
 
+  it("explains an echo-chamber nei: reliable sources found, but all re-reporting (no primary)", () => {
+    // #51: high-reliability supports, but every source is secondary re-reporting → the rationale
+    // must name re-reporting / no originating source, not "none cleared the reliability bar".
+    const ev = [
+      evidence("supports", "reuters.com", "high", "secondary"),
+      evidence("supports", "ap.org", "high", "secondary"),
+    ];
+    const text = rationaleFor(claim(), "nei", ev);
+    expect(text).toMatch(/re-reporting/i);
+    expect(text).toMatch(/no primary|originating source/i);
+    expect(text).not.toMatch(/none cleared the reliability/i);
+  });
+
   it("names the supporting domains for a supported verdict and flags a primary source", () => {
     const ev = [evidence("supports", "bbc.com"), evidence("supports", "reuters.com")];
     expect(rationaleFor(claim(), "supported", ev)).toBe(
@@ -197,8 +210,9 @@ describe("rankAndCapEvidence", () => {
   });
 
   it("preserves the verdict across the cap by keeping the top deciding support and refute", () => {
-    // 8 deciding supports would crowd out the lone refute on a naive top-N slice, flipping
-    // a Conflicting claim to Supported. The cap must retain the deciding refute.
+    // 8 deciding supports would crowd out the lone refute on a naive top-N slice, flipping the
+    // claim's verdict from NEI (mixed evidence is inconclusive — ADR 0007) to a false Supported.
+    // The cap must retain the deciding refute so the verdict is preserved.
     const supports = Array.from({ length: 8 }, (_, i) =>
       evidence("supports", `s${i}.com`, "high", "primary"),
     );
@@ -207,9 +221,9 @@ describe("rankAndCapEvidence", () => {
     const capped = rankAndCapEvidence(full, 4);
     expect(capped).toHaveLength(4);
     expect(capped.some((e) => e.stance === "refutes")).toBe(true);
-    // Verdict on the capped set matches the verdict on the full set.
+    // Verdict on the capped set matches the verdict on the full set — NEI, not a false Supported.
     expect(claimVerdict(claim(), capped)).toBe(claimVerdict(claim(), full));
-    expect(claimVerdict(claim(), capped)).toBe("conflicting");
+    expect(claimVerdict(claim(), capped)).toBe("nei");
   });
 });
 
@@ -319,6 +333,19 @@ describe("resolveQuestion (agentic gather loop)", () => {
     expect(search).toHaveBeenCalledTimes(2);
     // 4 raw results (b.com twice) collapse to 3 unique evidence items.
     expect(out.evidence.map((e) => e.domain).sort()).toEqual(["a.com", "b.com", "c.com"]);
+  });
+
+  it("survives a search failure: degrades that query but keeps the loop and run alive", async () => {
+    // A transient Exa timeout on one query must NOT abort the gather loop (and via Promise.race,
+    // the whole run). The model gets an error result and the question resolves on what's left.
+    const search = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error("ETIMEDOUT"), { code: "ETIMEDOUT" }));
+    const d = deps({ search }, ["q1", "q2"]);
+    const out = await resolveQuestion(claim(), question, d);
+    expect(out.evidence).toEqual([]);
+    expect(search).toHaveBeenCalledTimes(2); // both queries attempted; the first failure didn't abort
+    expect(out.trace.searchQueries).toEqual(["q1", "q2"]);
   });
 
   it("returns a trace: HyDE hypothetical, the executed queries, and the gather summary", async () => {

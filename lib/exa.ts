@@ -1,5 +1,6 @@
 import Exa from "exa-js";
 import { DEFAULT_SOURCES, DEFAULT_CHARS, type ExaCategory } from "./run-config";
+import { withRetry, isTransientNetworkError } from "./retry";
 
 // The short, query-focused excerpt shown on each evidence card. Kept small for legibility —
 // separate from `maxChars`, which governs how much full text the *classifier* reads.
@@ -110,9 +111,16 @@ export function createExaSearch(
       text: { maxCharacters: maxChars },
       ...(preferFresh ? { livecrawl: "preferred" as const } : {}),
     };
-    const { results } = deepSearch
-      ? await client.search(query, { type: "deep", ...base, contents })
-      : await client.search(query, { type: "auto", ...base, contents });
+    // Retry transient network blips (ETIMEDOUT, connection resets, Exa 5xx). The dev runs over a
+    // consumer link and serverless cold-starts, where a first request often times out then
+    // succeeds — without this, one blip would degrade the question (issue #70).
+    const { results } = await withRetry(
+      () =>
+        deepSearch
+          ? client.search(query, { type: "deep", ...base, contents })
+          : client.search(query, { type: "auto", ...base, contents }),
+      { attempts: 3, isRetryable: isTransientNetworkError },
+    );
 
     return results.map((r) => {
       const highlight = Array.isArray(r.highlights) ? r.highlights[0] : undefined;

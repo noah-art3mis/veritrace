@@ -96,9 +96,17 @@ export async function resolveQuestion(
     searchQueries.push(query); // record the actual executed queries for the trace
     // Focus each source's highlight on the question being resolved, not the model's keyword
     // query — the highlight is the card excerpt, so this keeps it on-point.
-    const results = await deps.search(query, { ...window, highlightQuery: question.text });
-    for (const r of results) collected.set(r.url, r); // dedup by url across queries
-    return results;
+    try {
+      const results = await deps.search(query, { ...window, highlightQuery: question.text });
+      for (const r of results) collected.set(r.url, r); // dedup by url across queries
+      return results;
+    } catch (err) {
+      // A search failure (network timeout, Exa 5xx — even after retries) must NOT throw out of
+      // the gather loop, which would abort this question and, via Promise.race, the whole run
+      // (issue #70). Report it to the model so it can try another angle; the question resolves
+      // on whatever else was gathered.
+      return { error: `search failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
   }
 
   // Seed with a HyDE-expanded query (HerO/HyDE retrieval); the model issues follow-ups.
@@ -259,6 +267,13 @@ export function rationaleFor(claim: ClaimItem, verdict: Verdict, evidence: Evide
     // Make the insufficiency self-explaining (Kotonya & Toni; CLUE): say WHY, not just NEI.
     if (evidence.length === 0) {
       return "No primary sources answered this claim's questions.";
+    }
+    // Echo-chamber abstention (#51): reliable sources were found, but every deciding one is
+    // re-reporting — no originating source — so the verdict abstains rather than trust the echo.
+    const deciding = evidence.filter(isDeciding);
+    if (deciding.length > 0 && !deciding.some((e) => e.sourceType === "primary")) {
+      const d = uniqueDomains(deciding);
+      return `Found ${deciding.length} reliable source${deciding.length === 1 ? "" : "s"} (${d}) but all are re-reporting — no primary/originating source to establish the claim.`;
     }
     const found = uniqueDomains(evidence);
     const n = evidence.length;

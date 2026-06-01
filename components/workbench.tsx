@@ -7,13 +7,11 @@ import { SettingsPanel, DEFAULT_SETTINGS, type Settings } from "./settings-panel
 import { useIsMobile } from "./use-is-mobile";
 import { MODELS, supportsTemperature } from "@/lib/run-config";
 import { MOCK_GRAPH } from "@/lib/mock-graph";
-import type { FactGraph } from "@/lib/graph-types";
+import type { FactGraph, ClaimItem } from "@/lib/graph-types";
 import type { PipelineEvent } from "@/lib/pipeline/events";
 import { applyEvent, emptyGraph } from "@/lib/apply-event";
-import { DEMO_CACHE } from "@/lib/demo-cache";
-import { graphToEvents } from "@/lib/replay";
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+import { sourceVerdict, tallyClaims } from "@/lib/pipeline/verdict";
+import { isRelevanceDropped } from "@/lib/pipeline/claim-status";
 
 // Persist run settings (model / temperature / thinking + the user's optional API keys)
 // in this browser, so a tester's configuration survives reloads.
@@ -31,21 +29,26 @@ function loadSettings(): Settings {
 
 // Curated demo posts (real viral misinformation, text-native) — see demo-corpus/SOURCES.md.
 // The El Mencho story is the de-novo hero; the others give textured mixed-verdict graphs.
-const EXAMPLES: { label: string; text: string }[] = [
+// `country` (flag + ISO code) is shown on the chip so the specimen's origin reads at a glance (#21).
+const EXAMPLES: { label: string; text: string; country: string }[] = [
   {
     label: "El Mencho · GDL airport",
+    country: "🇲🇽 MX",
     text: "ÚLTIMA HORA: Tras la muerte de 'El Mencho' el 22 de febrero, comandos armados del CJNG tomaron por asalto el Aeropuerto Internacional de Guadalajara y mantienen como rehenes a turistas estadounidenses. Mientras tanto, Puerto Vallarta arde en llamas.",
   },
   {
     label: "Springfield · pets",
+    country: "🇺🇸 US",
     text: "In Springfield, they're eating the dogs. The people that came in, they're eating the cats, they're eating the pets of the people that live there.",
   },
   {
     label: "Shakira · show no Rio",
+    country: "🇧🇷 BR",
     text: "URGENTE 🚨 Durante seu show no Rio de Janeiro, Shakira parou no meio da apresentação para declarar apoio a Lula e pediu que a plateia votasse contra Bolsonaro. Milhares de fãs vaiaram e o vídeo já viralizou nas redes!",
   },
   {
     label: "Pfizer · hantavírus",
+    country: "🇧🇷 BR",
     text: "Documento oficial da própria Pfizer cita o hantavírus como reação adversa da vacina contra a Covid-19. Eles sabiam o tempo todo e esconderam de todo mundo. Compartilhe antes que apaguem!",
   },
 ];
@@ -55,7 +58,6 @@ export default function Workbench() {
   const [graph, setGraph] = useState<FactGraph>(MOCK_GRAPH);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cached, setCached] = useState(false);
   const [runId, setRunId] = useState(0);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
@@ -70,8 +72,6 @@ export default function Workbench() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const summarizedRunIdRef = useRef(0);
-  // Tracks the in-flight live run so it can be aborted/superseded if needed.
-  const abortRef = useRef<AbortController | null>(null);
 
   // Hydrate settings from localStorage after mount (avoids SSR/client mismatch),
   // then persist on every change. The post-mount setState is deliberate: reading
@@ -147,27 +147,11 @@ export default function Workbench() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, runId, graph.source.verdict]);
 
-  // Replay a captured run as a simulated stream — used by the automatic wifi-death
-  // fallback when a live run fails. The caller owns loading / runId.
-  async function replayCached(trimmed: string, fallback: FactGraph) {
-    setCached(true);
-    setGraph(emptyGraph(trimmed));
-    for (const { event, delay } of graphToEvents(fallback)) {
-      await sleep(delay);
-      if (event.type !== "error" && event.type !== "done") {
-        setGraph((g) => applyEvent(g, event));
-      }
-    }
-  }
-
   async function check(source: string) {
     const trimmed = source.trim();
     if (!trimmed || loading) return;
-    const controller = new AbortController();
-    abortRef.current = controller;
     setLoading(true);
     setError(null);
-    setCached(false);
     // On mobile, hand the small screen to the evidence graph the moment a run starts — the
     // input zone has done its job (#6). Desktop keeps it open (the collapse is md:-inert anyway).
     if (isMobile) setInputOpen(false);
@@ -180,7 +164,6 @@ export default function Workbench() {
       const res = await fetch("/api/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
         body: JSON.stringify({ text: trimmed, config: runConfig() }),
       });
       if (!res.ok || !res.body) {
@@ -205,20 +188,78 @@ export default function Workbench() {
         }
       }
     } catch (err) {
-      // Superseded by a manual "Cached" press — that handler now owns the UI.
-      if (controller.signal.aborted) return;
-      // Wifi-death fallback: if this exact source has a cached run, replay it as a
-      // simulated stream so the demo still works offline (PLAN.md top risk).
-      const fallback = DEMO_CACHE[trimmed];
-      if (fallback) {
-        await replayCached(trimmed, fallback);
-      } else {
-        setError(err instanceof Error ? err.message : "Something went wrong");
-      }
+      setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
-      if (abortRef.current === controller) abortRef.current = null;
-      // When aborted, the manual handler controls loading — don't clear it here.
-      if (!controller.signal.aborted) setLoading(false);
+      setLoading(false);
+    }
+  }
+
+  // Recompute the source-level verdict + tally from the current per-claim verdicts (ADR 0007's
+  // relevance-weighted rule). Used after a claim is re-included so the document headline + ratio
+  // reflect the newly-checked claim. Dropped claims are excluded from the aggregate and the "of N".
+  function withRecomputedSource(g: FactGraph): FactGraph {
+    const checked = g.claims.filter((c) => !isRelevanceDropped(c));
+    const verdicts = checked.map((c) => c.verdict ?? "nei");
+    const weighted = checked.map((c) => ({
+      verdict: c.verdict ?? "nei",
+      relevanceScore: c.relevanceScore,
+    }));
+    return {
+      ...g,
+      source: {
+        ...g.source,
+        verdict: sourceVerdict(weighted),
+        tally: tallyClaims(verdicts, g.claims.length - checked.length),
+      },
+    };
+  }
+
+  // Re-include a relevance-dropped claim (#33): override the filter, then re-resolve just that
+  // claim (questions → search → verdict) and merge the streamed events into the existing graph.
+  async function reincludeClaim(claim: ClaimItem) {
+    if (loading) return;
+    setError(null);
+    // Optimistically flip it back to searchable + analyzing so the node leaves the dropped style.
+    setGraph((g) => ({
+      ...g,
+      claims: g.claims.map((c) =>
+        c.id === claim.id ? { ...c, relevant: true, verdict: null, rationale: undefined } : c,
+      ),
+    }));
+    try {
+      const res = await fetch("/api/resolve-claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          claim: { id: claim.id, text: claim.text, date: claim.date },
+          config: runConfig(),
+        }),
+      });
+      if (!res.ok || !res.body) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Request failed (${res.status})`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const ev = JSON.parse(line) as PipelineEvent;
+          if (ev.type === "error") throw new Error(ev.message);
+          setGraph((g) => applyEvent(g, ev));
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not re-include the claim");
+    } finally {
+      // Fold the re-included claim's verdict into the document headline + ratio.
+      setGraph((g) => withRecomputedSource(g));
     }
   }
 
@@ -227,15 +268,17 @@ export default function Workbench() {
       <div className="vt-reveal border-b border-[var(--line)] bg-[var(--bg-2)]/60 px-6 py-3.5">
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
+            {/* Mobile-only collapse toggle. The verbose "the artifact under examination" header
+                was dropped (#36) — the textarea placeholder already explains the input; on desktop
+                the zone is always open, so no toggle is needed there. */}
             <button
               type="button"
               onClick={() => setInputOpen((o) => !o)}
               aria-expanded={inputOpen}
               aria-label={inputOpen ? "Collapse input" : "Expand input"}
-              className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)] md:cursor-default"
+              className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)] md:hidden"
             >
-              <span className="md:hidden text-[var(--ink-2)]">{inputOpen ? "▾" : "▸"}</span>▣ Paste
-              source text · the artifact under examination
+              <span className="text-[var(--ink-2)]">{inputOpen ? "▾" : "▸"}</span> Source text
             </button>
             <button
               type="button"
@@ -243,17 +286,23 @@ export default function Workbench() {
               aria-expanded={showSettings}
               className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)]"
             >
-              ⚙ {MODELS[settings.model]} · temp{" "}
-              {!supportsTemperature(settings.model)
-                ? "n/a"
-                : settings.thinking
-                  ? "1·think"
-                  : settings.temperature.toFixed(2)}{" "}
-              · ≤{settings.maxClaims} claims · ≤{settings.maxQuestions} q · ≤{settings.maxSources}{" "}
-              src · {(settings.maxChars / 1000).toFixed(settings.maxChars % 1000 === 0 ? 0 : 1)}k
-              chars{settings.deepSearch ? " · deep" : ""}
-              {settings.category ? ` · ${settings.category}` : ""}
-              {settings.preferFresh ? " · fresh" : ""}
+              {/* On mobile show only the model — the full temp/claims/q/src strip is meaningless
+                  to a first-timer and eats the scarce first screen (#27). Tap to expand settings. */}
+              ⚙ {MODELS[settings.model].label}
+              <span className="hidden sm:inline">
+                {" "}
+                · temp{" "}
+                {!supportsTemperature(settings.model)
+                  ? "n/a"
+                  : settings.thinking
+                    ? "1·think"
+                    : settings.temperature.toFixed(2)}{" "}
+                · ≤{settings.maxClaims} claims · ≤{settings.maxQuestions} q · ≤{settings.maxSources}{" "}
+                src · {(settings.maxChars / 1000).toFixed(settings.maxChars % 1000 === 0 ? 0 : 1)}k
+                chars{settings.deepSearch ? " · deep" : ""}
+                {settings.category ? ` · ${settings.category}` : ""}
+                {settings.preferFresh ? " · fresh" : ""}
+              </span>
             </button>
           </div>
           {/* Collapsible body: hidden on mobile when retracted, always shown from md up. */}
@@ -268,35 +317,49 @@ export default function Workbench() {
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="A tweet, WhatsApp forward, or Facebook caption… VERITRACE decomposes it into checkable claims and gathers primary sources, live."
-                rows={2}
+                onKeyDown={(e) => {
+                  // Enter runs the check; Shift+Enter inserts a newline (#22).
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    check(text);
+                  }
+                }}
+                placeholder="A tweet, WhatsApp forward, or Facebook caption… VERITRACE decomposes it into checkable claims and gathers primary sources, live. (Enter to run, Shift+Enter for a new line.)"
+                rows={3}
                 className="w-full resize-none bg-transparent px-3.5 py-2.5 text-[13.5px] leading-relaxed text-[var(--ink-1)] placeholder:italic placeholder:text-[var(--ink-3)] focus:outline-none"
               />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-[var(--ink-3)]">
-                Specimens
-              </span>
-              {EXAMPLES.map((ex, i) => (
-                <button
-                  key={ex.label}
-                  disabled={loading}
-                  onClick={() => {
-                    setText(ex.text);
-                    check(ex.text);
-                  }}
-                  className="group inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[10.5px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)] disabled:opacity-40"
-                >
-                  <span className="text-[var(--ink-4)] group-hover:text-[var(--accent)]">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  {ex.label}
-                </button>
-              ))}
+            {/* On mobile the specimens become a single horizontal scroll-snap row (instead of four
+                full-width stacked rows) and the Run button drops to its own row, reclaiming the
+                first screen (#27). From sm+ it's the original inline wrap with Run pushed right. */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:pb-0">
+                <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[0.18em] text-[var(--ink-3)]">
+                  Specimens
+                </span>
+                {EXAMPLES.map((ex, i) => (
+                  <button
+                    key={ex.label}
+                    disabled={loading}
+                    onClick={() => {
+                      setText(ex.text);
+                      check(ex.text);
+                    }}
+                    className="group inline-flex shrink-0 snap-start items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[10.5px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)] disabled:opacity-40"
+                  >
+                    <span className="text-[var(--ink-4)] group-hover:text-[var(--accent)]">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    {ex.label}
+                    <span className="text-[var(--ink-4)]">·</span>
+                    <span className="text-[var(--ink-3)]">{ex.country}</span>
+                  </button>
+                ))}
+              </div>
               <button
                 onClick={() => check(text)}
                 disabled={loading || text.trim().length === 0}
-                className="ml-auto inline-flex items-center gap-2 rounded-md px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-[#04181b] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-[#04181b] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:ml-auto"
                 style={{
                   background:
                     loading || text.trim().length === 0 ? "var(--line-2)" : "var(--accent)",
@@ -331,6 +394,7 @@ export default function Workbench() {
           showInternals={settings.showInternals}
           showMinimap={settings.showMinimap}
           withholdVerdict={settings.withholdVerdict}
+          onReinclude={reincludeClaim}
         />
         <RunReport
           graph={graph}
@@ -356,18 +420,20 @@ export default function Workbench() {
             ▣ Brief
           </button>
         )}
-        {cached && (
-          <div className="pointer-events-none absolute right-4 top-4 z-10">
-            <span
-              className="rounded-full border px-3 py-1 font-mono text-[9.5px] uppercase tracking-[0.16em]"
+        {/* The canvas is pre-filled with the El Mencho MOCK_GRAPH on first load; label it as a
+            sample so it doesn't read as the user's own result already loading (#28). */}
+        {runId === 0 && !loading && (
+          <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2">
+            <div
+              className="rounded-full border px-3.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.16em] shadow-lg backdrop-blur"
               style={{
                 borderColor: "var(--line-2)",
-                background: "rgba(11,14,21,0.9)",
+                background: "rgba(11,14,21,0.85)",
                 color: "var(--ink-3)",
               }}
             >
-              ↺ cached replay · offline
-            </span>
+              ▸ Sample analysis — paste your own above
+            </div>
           </div>
         )}
         {loading && (

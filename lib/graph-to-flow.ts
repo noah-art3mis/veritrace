@@ -57,8 +57,19 @@ export function buildNodes(graph: FactGraph): AppNode[] {
  * wire each row as a "comb": the question feeds the row's leftmost card, and each remaining
  * card hangs off its left neighbour's right handle, so every edge joins adjacent cards only.
  */
+// Structural chrome stays a neutral hue until a claim resolves; once it has a verdict the
+// connectors INTO and OUT OF that claim take the verdict colour, so the green/red/amber/grey
+// reading propagates along source → claim → question, not just sitting in the badges (#24). Red,
+// green, and amber are thus reserved for veracity; unresolved structure is the neutral slate.
+const STRUCTURAL_STROKE = "#2b3645";
+
+function claimStroke(claim: ClaimItem): string {
+  return claim.verdict ? VERDICT_META[claim.verdict].color : STRUCTURAL_STROKE;
+}
+
 export function buildFlowEdges(graph: FactGraph): Edge[] {
   const edges: Edge[] = [];
+  const claimById = new Map(graph.claims.map((c) => [c.id, c]));
   for (const claim of graph.claims) {
     edges.push({
       id: `e-${graph.source.id}-${claim.id}`,
@@ -66,16 +77,21 @@ export function buildFlowEdges(graph: FactGraph): Edge[] {
       target: claim.id,
       type: "smoothstep",
       animated: false,
-      style: { stroke: "#2b3645", strokeWidth: 1.5 },
+      style: { stroke: claimStroke(claim), strokeWidth: 1.5 },
     });
   }
   for (const q of graph.questions) {
+    const claim = claimById.get(q.claimId);
     edges.push({
       id: `e-${q.claimId}-${q.id}`,
       source: q.claimId,
       target: q.id,
       type: "smoothstep",
-      style: { stroke: "#1f6f78", strokeWidth: 1.5, strokeDasharray: "4 3" },
+      style: {
+        stroke: claim ? claimStroke(claim) : STRUCTURAL_STROKE,
+        strokeWidth: 1.5,
+        strokeDasharray: "4 3",
+      },
     });
   }
   for (const row of evidenceRows(graph)) {

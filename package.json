@@ -20,7 +20,9 @@
     "@dagrejs/dagre": "^3.0.0",
     "@xyflow/react": "^12.10.2",
     "exa-js": "^2.13.0",
+    "jsonrepair": "^3.14.0",
     "next": "16.2.6",
+    "openai": "^6.39.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
