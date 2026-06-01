@@ -4,7 +4,8 @@ Decided, human-adjudicated claims with a gold verdict, used to score the pipelin
 **not** scrape Snopes / Full Fact / Aos Fatos directly — their ToS discourage it, the HTML
 is brittle, and (per their multi-point rating scales) the raw labels don't map cleanly onto
 our four verdicts anyway. Instead we **bootstrap from openly-licensed academic corpora that
-already contain these orgs' fact-checks**, then normalise into one schema.
+already contain these orgs' fact-checks**, then normalise into one schema. The rationale is
+recorded in [ADR 0002](../../docs/adr/0002-bootstrap-eval-golds-from-academic-benchmarks.md).
 
 ## The schema
 
