@@ -22,7 +22,7 @@ describe("runEval", () => {
       source: { verdict: text === "claim one" ? "refuted" : "nei" },
     });
     const items = await runEval(golds, fakeRun);
-    expect(items).toEqual([
+    expect(items).toMatchObject([
       {
         id: "g1",
         claim: "claim one",
@@ -38,6 +38,42 @@ describe("runEval", () => {
         tags: ["quote-verification"],
       },
     ]);
+  });
+
+  it("captures per-claim rationale and evidence detail for qualitative diagnosis", async () => {
+    // Why the model decided what it did lives in the claim rationale and the evidence stances —
+    // the harness must retain them. It used to keep only the verdict, which can't explain a miss.
+    const golds = [{ id: "g", claim: "c", gold: { verdict: "nei" }, tags: [] }];
+    const fakeGraph = {
+      source: { verdict: "refuted" },
+      claims: [
+        {
+          id: "c1",
+          text: "c",
+          verdict: "refuted",
+          rationale: "a source refutes it",
+          checkable: true,
+        },
+      ],
+      evidence: [
+        {
+          questionId: "c1-q1",
+          domain: "bbc.com",
+          url: "https://bbc.com/x",
+          stance: "refutes",
+          reliability: "high",
+          stanceConfidence: 0.9,
+          sourceType: "primary",
+        },
+      ],
+    };
+    const [item] = await runEval(golds, async () => fakeGraph);
+    const detail = item.detail as {
+      claims: Record<string, unknown>[];
+      evidence: Record<string, unknown>[];
+    };
+    expect(detail.claims[0].rationale).toBe("a source refutes it");
+    expect(detail.evidence[0]).toMatchObject({ stance: "refutes", reliability: "high" });
   });
 
   it("coerces a missing document verdict to null (so scoring counts it a miss, not nei)", async () => {

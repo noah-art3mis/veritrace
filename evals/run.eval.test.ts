@@ -16,7 +16,7 @@ import { describe, it, expect } from "vitest";
 import { fileURLToPath } from "node:url";
 import { loadGolden, GOLDEN_VERDICTS } from "./golden/load.mjs";
 import { scoreReport, formatReport, isDeNovoCheckable } from "./score.mjs";
-import { runEval } from "./run.mjs";
+import { runEval, writeResults } from "./run.mjs";
 import { collectGraph } from "@/lib/pipeline/stream";
 import { createAnthropic } from "@/lib/anthropic";
 import { createExaSearch } from "@/lib/exa";
@@ -70,6 +70,12 @@ describe.skipIf(!hasKeys)("smoke-set eval (live pipeline)", () => {
             .join("\n"),
       );
       console.log("\n" + out.join("\n\n") + "\n");
+
+      // Persist the FULL per-claim detail (verdict + rationale + evidence stances) so a low
+      // score can be diagnosed qualitatively — the console report only carries verdicts.
+      const resultsPath = fileURLToPath(new URL("./golden/last-run.results.json", import.meta.url));
+      writeResults(resultsPath, { model: config.model, report: overall, items });
+      console.log(`full per-claim detail → ${resultsPath}`);
 
       // Stable assertions (the numbers themselves vary run-to-run, so we don't gate on them):
       // the harness must score every gold and only ever emit a real verdict or an explicit null.
