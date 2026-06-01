@@ -1,4 +1,11 @@
-import type { FactGraph, ClaimItem, QuestionItem, EvidenceItem, Verdict } from "../graph-types";
+import type {
+  FactGraph,
+  ClaimItem,
+  QuestionItem,
+  EvidenceItem,
+  Verdict,
+  QuestionTrace,
+} from "../graph-types";
 import type { PipelineEvent } from "./events";
 import type { PipelineDeps } from "./deps";
 import { extractClaims } from "./extract";
@@ -109,11 +116,21 @@ export async function* streamPipeline(
   for (const q of allQuestions) yield { type: "question_status", id: q.id, status: "searching" };
 
   const tasks = allQuestions.map((q) =>
-    resolveQuestion(claimById.get(q.claimId)!, q, deps).then(({ evidence, trace }) => ({
-      q,
-      evidence,
-      trace,
-    })),
+    resolveQuestion(claimById.get(q.claimId)!, q, deps)
+      .then(({ evidence, trace }) => ({ q, evidence, trace }))
+      // Isolate per-question failures: a single question whose retrieval throws (an Exa outage
+      // that outlived its retries, a classify error) must not abort the parallel fan-out and kill
+      // every other question (issue #70). Degrade it to no evidence — with a trace that SAYS why,
+      // upholding the transparency principle — so the claim still resolves and the run finishes.
+      .catch((err: unknown) => ({
+        q,
+        evidence: [] as EvidenceItem[],
+        trace: {
+          hydePassage: "",
+          searchQueries: [],
+          gatherSummary: `Retrieval failed: ${err instanceof Error ? err.message : String(err)}`,
+        } satisfies QuestionTrace,
+      })),
   );
 
   for await (const { q, evidence, trace } of asCompleted(tasks)) {

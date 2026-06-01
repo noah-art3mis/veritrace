@@ -151,6 +151,29 @@ describe("streamPipeline verdict resolution", () => {
     const verdict = events.find((e) => e.type === "claim_verdict");
     expect(verdict).toMatchObject({ id: "c1", verdict: "nei" });
   });
+
+  it("isolates a question whose retrieval throws: the run completes instead of crashing", async () => {
+    // A single resolveQuestion rejection (e.g. an Exa outage that survived its own retries) must
+    // not propagate out of the parallel fan-out and abort every other question (issue #70). The
+    // failed question degrades to no evidence — and a trace that SAYS why — so the claim still
+    // resolves and the stream reaches `done`.
+    extractClaims.mockResolvedValue([claim("c1")]);
+    generateQuestions.mockResolvedValue([question("c1", 1), question("c1", 2)]);
+    resolveQuestion
+      .mockResolvedValueOnce(resolved([evidence("c1-q1", "supports")]))
+      .mockRejectedValueOnce(Object.assign(new Error("ETIMEDOUT"), { code: "ETIMEDOUT" }));
+
+    const events = await drain("post");
+
+    expect(events[events.length - 1].type).toBe("done"); // run completed, did not throw
+    expect(events.some((e) => e.type === "claim_verdict" && e.id === "c1")).toBe(true);
+    // The failed question still answered (degraded) and its trace explains the failure.
+    const trace = events.find(
+      (e): e is Extract<PipelineEvent, { type: "question_trace" }> =>
+        e.type === "question_trace" && e.id === "c1-q2",
+    );
+    expect(trace?.trace.gatherSummary).toMatch(/failed|timedout/i);
+  });
 });
 
 describe("streamPipeline fact-check short-circuit", () => {
