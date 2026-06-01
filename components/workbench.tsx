@@ -27,21 +27,26 @@ function loadSettings(): Settings {
 
 // Curated demo posts (real viral misinformation, text-native) — see demo-corpus/SOURCES.md.
 // The El Mencho story is the de-novo hero; the others give textured mixed-verdict graphs.
-const EXAMPLES: { label: string; text: string }[] = [
+// `country` (flag + ISO code) is shown on the chip so the specimen's origin reads at a glance (#21).
+const EXAMPLES: { label: string; text: string; country: string }[] = [
   {
     label: "El Mencho · GDL airport",
+    country: "🇲🇽 MX",
     text: "ÚLTIMA HORA: Tras la muerte de 'El Mencho' el 22 de febrero, comandos armados del CJNG tomaron por asalto el Aeropuerto Internacional de Guadalajara y mantienen como rehenes a turistas estadounidenses. Mientras tanto, Puerto Vallarta arde en llamas.",
   },
   {
     label: "Springfield · pets",
+    country: "🇺🇸 US",
     text: "In Springfield, they're eating the dogs. The people that came in, they're eating the cats, they're eating the pets of the people that live there.",
   },
   {
     label: "Shakira · show no Rio",
+    country: "🇧🇷 BR",
     text: "URGENTE 🚨 Durante seu show no Rio de Janeiro, Shakira parou no meio da apresentação para declarar apoio a Lula e pediu que a plateia votasse contra Bolsonaro. Milhares de fãs vaiaram e o vídeo já viralizou nas redes!",
   },
   {
     label: "Pfizer · hantavírus",
+    country: "🇧🇷 BR",
     text: "Documento oficial da própria Pfizer cita o hantavírus como reação adversa da vacina contra a Covid-19. Eles sabiam o tempo todo e esconderam de todo mundo. Compartilhe antes que apaguem!",
   },
 ];
@@ -265,6 +270,8 @@ export default function Workbench() {
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   {ex.label}
+                  <span className="text-[var(--ink-4)]">·</span>
+                  <span className="text-[var(--ink-3)]">{ex.country}</span>
                 </button>
               ))}
               <button
