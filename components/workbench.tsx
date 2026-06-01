@@ -253,7 +253,6 @@ export default function Workbench() {
           <div
             className={inputOpen ? "flex flex-col gap-3" : "hidden md:flex md:flex-col md:gap-3"}
           >
-            {showSettings && <SettingsPanel settings={settings} onChange={setSettings} />}
             <div
               className="rounded-lg border bg-[var(--bg)] transition-colors focus-within:border-[var(--accent)]"
               style={{ borderColor: "var(--line-2)" }}
@@ -380,6 +379,13 @@ export default function Workbench() {
           </div>
         )}
       </main>
+
+      <SettingsPanel
+        settings={settings}
+        onChange={setSettings}
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   );
 }
