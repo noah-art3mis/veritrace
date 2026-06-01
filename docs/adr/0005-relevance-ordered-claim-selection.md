@@ -1,6 +1,6 @@
 # Relevance-ordered claim selection
 
-**Status:** proposed
+**Status:** accepted
 
 ## Context
 

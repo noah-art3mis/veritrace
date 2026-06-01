@@ -1,6 +1,6 @@
 # Answer layer without a fifth card rank
 
-**Status:** proposed
+**Status:** accepted
 
 ## Context
 

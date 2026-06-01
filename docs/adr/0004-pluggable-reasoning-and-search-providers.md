@@ -1,6 +1,6 @@
 # Pluggable reasoning + search providers
 
-**Status:** proposed
+**Status:** accepted
 
 ## Context
 
