@@ -215,17 +215,23 @@ export default function Workbench() {
               aria-expanded={showSettings}
               className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)]"
             >
-              ⚙ {MODELS[settings.model].label} · temp{" "}
-              {!supportsTemperature(settings.model)
-                ? "n/a"
-                : settings.thinking
-                  ? "1·think"
-                  : settings.temperature.toFixed(2)}{" "}
-              · ≤{settings.maxClaims} claims · ≤{settings.maxQuestions} q · ≤{settings.maxSources}{" "}
-              src · {(settings.maxChars / 1000).toFixed(settings.maxChars % 1000 === 0 ? 0 : 1)}k
-              chars{settings.deepSearch ? " · deep" : ""}
-              {settings.category ? ` · ${settings.category}` : ""}
-              {settings.preferFresh ? " · fresh" : ""}
+              {/* On mobile show only the model — the full temp/claims/q/src strip is meaningless
+                  to a first-timer and eats the scarce first screen (#27). Tap to expand settings. */}
+              ⚙ {MODELS[settings.model].label}
+              <span className="hidden sm:inline">
+                {" "}
+                · temp{" "}
+                {!supportsTemperature(settings.model)
+                  ? "n/a"
+                  : settings.thinking
+                    ? "1·think"
+                    : settings.temperature.toFixed(2)}{" "}
+                · ≤{settings.maxClaims} claims · ≤{settings.maxQuestions} q · ≤{settings.maxSources}{" "}
+                src · {(settings.maxChars / 1000).toFixed(settings.maxChars % 1000 === 0 ? 0 : 1)}k
+                chars{settings.deepSearch ? " · deep" : ""}
+                {settings.category ? ` · ${settings.category}` : ""}
+                {settings.preferFresh ? " · fresh" : ""}
+              </span>
             </button>
           </div>
           {/* Collapsible body: hidden on mobile when retracted, always shown from md up. */}
@@ -248,36 +254,41 @@ export default function Workbench() {
                   }
                 }}
                 placeholder="A tweet, WhatsApp forward, or Facebook caption… VERITRACE decomposes it into checkable claims and gathers primary sources, live. (Enter to run, Shift+Enter for a new line.)"
-                rows={2}
+                rows={3}
                 className="w-full resize-none bg-transparent px-3.5 py-2.5 text-[13.5px] leading-relaxed text-[var(--ink-1)] placeholder:italic placeholder:text-[var(--ink-3)] focus:outline-none"
               />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-[var(--ink-3)]">
-                Specimens
-              </span>
-              {EXAMPLES.map((ex, i) => (
-                <button
-                  key={ex.label}
-                  disabled={loading}
-                  onClick={() => {
-                    setText(ex.text);
-                    check(ex.text);
-                  }}
-                  className="group inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[10.5px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)] disabled:opacity-40"
-                >
-                  <span className="text-[var(--ink-4)] group-hover:text-[var(--accent)]">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  {ex.label}
-                  <span className="text-[var(--ink-4)]">·</span>
-                  <span className="text-[var(--ink-3)]">{ex.country}</span>
-                </button>
-              ))}
+            {/* On mobile the specimens become a single horizontal scroll-snap row (instead of four
+                full-width stacked rows) and the Run button drops to its own row, reclaiming the
+                first screen (#27). From sm+ it's the original inline wrap with Run pushed right. */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:pb-0">
+                <span className="shrink-0 font-mono text-[9.5px] uppercase tracking-[0.18em] text-[var(--ink-3)]">
+                  Specimens
+                </span>
+                {EXAMPLES.map((ex, i) => (
+                  <button
+                    key={ex.label}
+                    disabled={loading}
+                    onClick={() => {
+                      setText(ex.text);
+                      check(ex.text);
+                    }}
+                    className="group inline-flex shrink-0 snap-start items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[10.5px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)] disabled:opacity-40"
+                  >
+                    <span className="text-[var(--ink-4)] group-hover:text-[var(--accent)]">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    {ex.label}
+                    <span className="text-[var(--ink-4)]">·</span>
+                    <span className="text-[var(--ink-3)]">{ex.country}</span>
+                  </button>
+                ))}
+              </div>
               <button
                 onClick={() => check(text)}
                 disabled={loading || text.trim().length === 0}
-                className="ml-auto inline-flex items-center gap-2 rounded-md px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-[#04181b] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex items-center justify-center gap-2 rounded-md px-4 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-[#04181b] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 sm:ml-auto"
                 style={{
                   background:
                     loading || text.trim().length === 0 ? "var(--line-2)" : "var(--accent)",
