@@ -70,6 +70,7 @@ The graph is 4 layers: **Source text → Claims → Questions → Evidence**.
 ## Flagged ambiguities
 
 - "Source" was used for both the input document and a retrieved evidence item — resolved: the input is the **document**; a retrieved item is **Evidence**.
+- OPEN (#2): an **Answer layer** — explicit candidate answers per Question, each owning its supporting Evidence — would make the graph **5 deep**, in direct tension with the retired-Sub-claim rule ("do not reintroduce… 5 deep and illegible"). Whether it's viable hinges on the radial **Constellation view** making 5 rings legible where 5 stacked card-layers are not; the two are coupled.
 - ~~OPEN: the human's role.~~ **RESOLVED:** VERITRACE is an _observability workbench_ for professional Fact-checkers. The AI does the analysis; the graph makes it granularly observable; the Fact-checker's professional judgment is final. The model's Verdict is advisory. "Read-only" ≠ "human can't decide" — authority lives in the journalist, not a UI button. Recompute-on-input is a stretch.
 
 ## Decisions so far
