@@ -34,6 +34,29 @@ describe("scoreReport", () => {
     expect(scoreReport([]).byGold.nei.recall).toBeNull();
   });
 
+  it("reports per-class precision, recall, and F1", () => {
+    // supported is predicted twice (a correct, c wrong) → P 1/2; recalled 1 of 2 golds → R 1/2.
+    expect(r.byGold.supported.precision).toBeCloseTo(0.5, 10);
+    expect(r.byGold.supported.recall).toBeCloseTo(0.5, 10);
+    expect(r.byGold.supported.f1).toBeCloseTo(0.5, 10);
+    // refuted predicted once and correct → P 1.0; recalled 1 of 2 → R 0.5; F1 harmonic.
+    expect(r.byGold.refuted.precision).toBeCloseTo(1.0, 10);
+    expect(r.byGold.refuted.f1).toBeCloseTo(2 / 3, 10);
+  });
+
+  it("computes macro-averaged precision/recall/F1 across the four classes", () => {
+    expect(r.macro.precision).toBeCloseTo(0.875, 10);
+    expect(r.macro.recall).toBeCloseTo(0.75, 10);
+    expect(r.macro.f1).toBeCloseTo(0.7916667, 6);
+  });
+
+  it("returns null precision for a class the model never predicts (no divide-by-zero)", () => {
+    // Only 'supported' golds, all predicted nei → conflicting/refuted/supported never predicted.
+    const r2 = scoreReport([{ gold: "supported", predicted: "nei" }]);
+    expect(r2.byGold.conflicting.precision).toBeNull();
+    expect(r2.byGold.supported.recall).toBeCloseTo(0, 10);
+  });
+
   it("builds a gold→predicted confusion matrix, bucketing nulls under 'error'", () => {
     expect(r.confusion.refuted).toEqual({ refuted: 1, supported: 1 });
     expect(r.confusion.supported).toEqual({ supported: 1, error: 1 });
