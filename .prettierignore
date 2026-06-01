@@ -6,6 +6,8 @@ coverage/
 public/
 demo-corpus/
 NOTES/
+evals/golden/raw/
+evals/golden/*.jsonl
 *.tsbuildinfo
 package-lock.json
 next-env.d.ts
