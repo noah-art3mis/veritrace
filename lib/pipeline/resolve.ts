@@ -96,9 +96,17 @@ export async function resolveQuestion(
     searchQueries.push(query); // record the actual executed queries for the trace
     // Focus each source's highlight on the question being resolved, not the model's keyword
     // query — the highlight is the card excerpt, so this keeps it on-point.
-    const results = await deps.search(query, { ...window, highlightQuery: question.text });
-    for (const r of results) collected.set(r.url, r); // dedup by url across queries
-    return results;
+    try {
+      const results = await deps.search(query, { ...window, highlightQuery: question.text });
+      for (const r of results) collected.set(r.url, r); // dedup by url across queries
+      return results;
+    } catch (err) {
+      // A search failure (network timeout, Exa 5xx — even after retries) must NOT throw out of
+      // the gather loop, which would abort this question and, via Promise.race, the whole run
+      // (issue #70). Report it to the model so it can try another angle; the question resolves
+      // on whatever else was gathered.
+      return { error: `search failed: ${err instanceof Error ? err.message : String(err)}` };
+    }
   }
 
   // Seed with a HyDE-expanded query (HerO/HyDE retrieval); the model issues follow-ups.

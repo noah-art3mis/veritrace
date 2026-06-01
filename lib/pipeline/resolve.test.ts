@@ -321,6 +321,19 @@ describe("resolveQuestion (agentic gather loop)", () => {
     expect(out.evidence.map((e) => e.domain).sort()).toEqual(["a.com", "b.com", "c.com"]);
   });
 
+  it("survives a search failure: degrades that query but keeps the loop and run alive", async () => {
+    // A transient Exa timeout on one query must NOT abort the gather loop (and via Promise.race,
+    // the whole run). The model gets an error result and the question resolves on what's left.
+    const search = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error("ETIMEDOUT"), { code: "ETIMEDOUT" }));
+    const d = deps({ search }, ["q1", "q2"]);
+    const out = await resolveQuestion(claim(), question, d);
+    expect(out.evidence).toEqual([]);
+    expect(search).toHaveBeenCalledTimes(2); // both queries attempted; the first failure didn't abort
+    expect(out.trace.searchQueries).toEqual(["q1", "q2"]);
+  });
+
   it("returns a trace: HyDE hypothetical, the executed queries, and the gather summary", async () => {
     const d = deps(
       {
