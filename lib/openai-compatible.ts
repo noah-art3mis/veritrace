@@ -13,13 +13,16 @@ import type { AskOpts, ReasoningProvider, ToolLoopOpts, ToolLoopResult } from ".
 // into OpenAI tool-calling, so the backend/model MUST support function calling.
 
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
-const DEFAULT_MODEL = "gemini-2.5-flash";
+// Cheapest Gemini tier; supports function calling (needed for the gather loop). Override with
+// OPENAI_COMPAT_MODEL for a stronger model or a non-Gemini backend.
+const DEFAULT_MODEL = "gemini-2.5-flash-lite";
 
 export function createOpenAICompatible(config: RunConfig): ReasoningProvider {
-  const apiKey = process.env.OPENAI_COMPAT_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey =
+    process.env.OPENAI_COMPAT_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "No key set for the OpenAI-compatible LLM provider (set GEMINI_API_KEY or OPENAI_COMPAT_API_KEY)",
+      "No key set for the OpenAI-compatible LLM provider (set GEMINI_API_KEY, OPENAI_COMPAT_API_KEY, or OPENAI_API_KEY)",
     );
   }
   const baseURL = process.env.OPENAI_COMPAT_BASE_URL || GEMINI_BASE_URL;
