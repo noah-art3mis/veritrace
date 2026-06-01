@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { rationaleFor, dateWindow, resolveQuestion, rankAndCapEvidence } from "./resolve";
+import {
+  rationaleFor,
+  dateWindow,
+  resolveQuestion,
+  rankAndCapEvidence,
+  dropClaimEchoes,
+} from "./resolve";
 import { claimVerdict } from "./verdict";
 import type { ClaimItem, EvidenceItem, QuestionItem, Stance } from "../graph-types";
 import type { RawEvidence } from "../exa";
@@ -30,6 +36,62 @@ function evidence(
     stanceConfidence: 0.9,
   };
 }
+
+describe("dropClaimEchoes", () => {
+  const CLAIM = "Armed CJNG members seized Guadalajara International Airport on 22 February 2026";
+  let n = 0;
+  function rawEv(passage: string, over: Partial<RawEvidence> = {}): RawEvidence {
+    return {
+      title: "t",
+      url: `https://ex.com/${n++}`,
+      domain: "ex.com",
+      passage,
+      text: passage,
+      ...over,
+    };
+  }
+
+  it("drops a passage that is a verbatim restatement of the claim", () => {
+    const kept = dropClaimEchoes(CLAIM, [rawEv(CLAIM)]);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("drops a near-verbatim echo differing only in case and punctuation", () => {
+    const echo = "armed cjng members seized guadalajara international airport on 22 february 2026.";
+    expect(dropClaimEchoes(CLAIM, [rawEv(echo)])).toHaveLength(0);
+  });
+
+  it("keeps a short passage that quotes the claim and then refutes it", () => {
+    // Same words as the claim plus a verification cue — this is doing the work, not echoing.
+    const refute = `${CLAIM}. This is false; officials denied any airport seizure.`;
+    expect(dropClaimEchoes(CLAIM, [rawEv(refute)])).toHaveLength(1);
+  });
+
+  it("keeps a long article that merely contains the claim among other reporting", () => {
+    const article =
+      `Security across Mexican airports was reviewed this month. ${CLAIM}, according to a viral post. ` +
+      "However, the federal aviation authority's logs, airline statements, and on-site reporters all " +
+      "described normal operations throughout the period, with no evacuation, no hostages, and no closure.";
+    expect(dropClaimEchoes(CLAIM, [rawEv(article)])).toHaveLength(1);
+  });
+
+  it("keeps genuinely independent evidence with low overlap", () => {
+    const indep = rawEv("Federal police reported routine patrols at the terminal that week.");
+    expect(dropClaimEchoes(CLAIM, [indep])).toEqual([indep]);
+  });
+
+  it("keeps everything when the claim text is empty (nothing to compare)", () => {
+    const items = [rawEv("anything at all")];
+    expect(dropClaimEchoes("", items)).toEqual(items);
+  });
+
+  it("removes only the echoes and preserves the order of the rest", () => {
+    const a = rawEv("Independent reporting on terminal security staffing levels.");
+    const echo = rawEv(CLAIM);
+    const b = rawEv("A separate dispatch about regional cartel movements that month.");
+    expect(dropClaimEchoes(CLAIM, [a, echo, b])).toEqual([a, b]);
+  });
+});
 
 describe("rationaleFor", () => {
   it("explains an unckeckable claim by its media-provenance limit, ignoring verdict", () => {
