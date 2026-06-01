@@ -3,27 +3,55 @@
 // extended thinking is on, and which API keys to use. It is built once per request
 // from the (untrusted) client body via parseConfig, then threaded down as `deps`.
 
-// The models we expose in the UI. Haiku is the default — cheapest/fastest for the
-// per-claim reasoning calls; Sonnet for the speed/quality balance, Opus for harder runs.
+// OpenAI-compatible API endpoints. The model registry below tags each non-Anthropic model with
+// the endpoint it speaks to, so picking a model also picks the backend (ADR 0004) — there is no
+// separate provider switch.
+export const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
+export const OPENAI_BASE_URL = "https://api.openai.com/v1";
+
+export type Provider = "anthropic" | "openai-compatible";
+
+/** One selectable model: its label, which backend serves it, and (approximate) cost. */
+export interface ModelInfo {
+  label: string;
+  provider: Provider;
+  /** OpenAI-compatible endpoint (Gemini vs OpenAI vs …). Absent for the Anthropic provider. */
+  baseUrl?: string;
+  /** Approximate USD per 1M tokens — shown in the picker; verify against the provider's pricing. */
+  inputCost: number;
+  outputCost: number;
+  /** Reasoning models reject a custom temperature; for these the UI control is inert. */
+  noTemperature?: boolean;
+}
+
+// The models we expose in the UI dropdown. The entry's `provider` (+ `baseUrl`) decides which
+// backend runs — selecting the model selects the backend. Keys come from env per backend
+// (ANTHROPIC_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY). Costs are approximate USD per 1M tokens.
 export const MODELS = {
-  "claude-opus-4-8": "Opus 4.8",
-  "claude-sonnet-4-6": "Sonnet 4.6",
-  "claude-haiku-4-5-20251001": "Haiku 4.5",
-} as const;
+  "claude-opus-4-8": { label: "Opus 4.8", provider: "anthropic", inputCost: 15, outputCost: 75, noTemperature: true }, // prettier-ignore
+  "claude-sonnet-4-6": { label: "Sonnet 4.6", provider: "anthropic", inputCost: 3, outputCost: 15 },
+  "claude-haiku-4-5-20251001": { label: "Haiku 4.5", provider: "anthropic", inputCost: 1, outputCost: 5 }, // prettier-ignore
+  "gpt-5.5": { label: "GPT-5.5", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 5, outputCost: 30, noTemperature: true }, // prettier-ignore
+  "gpt-5.4-mini": { label: "GPT-5.4 mini", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.75, outputCost: 4.5, noTemperature: true }, // prettier-ignore
+  "gpt-5.4-nano": { label: "GPT-5.4 nano", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.2, outputCost: 1.25, noTemperature: true }, // prettier-ignore
+  "gemini-2.5-flash": { label: "Gemini 2.5 Flash", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.3, outputCost: 2.5 }, // prettier-ignore
+  "gemini-2.5-flash-lite": { label: "Gemini 2.5 Flash-Lite", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.1, outputCost: 0.4 }, // prettier-ignore
+} as const satisfies Record<string, ModelInfo>;
 
 export type ModelId = keyof typeof MODELS;
 
-export const DEFAULT_MODEL: ModelId = "claude-haiku-4-5-20251001";
+// Default to the cheapest backend that has been running here — Gemini Flash-Lite — since the
+// selected model now drives the provider and Anthropic credits may be exhausted. Change freely.
+export const DEFAULT_MODEL: ModelId = "gemini-2.5-flash-lite";
 
-// Newer frontier models deprecated the `temperature` parameter — the API rejects any
-// request that includes it. For these we send no temperature and let the model sample
-// at its default; the UI temperature control is inert. Listed explicitly (rather than
-// inferred) so adding a model is a deliberate decision.
-const NO_TEMPERATURE_MODELS = new Set<ModelId>(["claude-opus-4-8"]);
+/** A model's registry entry, typed as the uniform ModelInfo (not its narrow as-const literal). */
+export function modelInfo(model: ModelId): ModelInfo {
+  return MODELS[model];
+}
 
-/** Whether the API still accepts a `temperature` parameter for this model. */
+/** Whether the API still accepts a `temperature` parameter for this model (reasoning models don't). */
 export function supportsTemperature(model: ModelId): boolean {
-  return !NO_TEMPERATURE_MODELS.has(model);
+  return !modelInfo(model).noTemperature;
 }
 
 // Extended-thinking budget. The API requires budget_tokens >= 1024 and

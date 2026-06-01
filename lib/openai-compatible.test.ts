@@ -17,7 +17,7 @@ vi.mock("openai", () => ({
 import { createOpenAICompatible } from "./openai-compatible";
 
 const baseConfig: RunConfig = {
-  model: "claude-haiku-4-5-20251001",
+  model: "gemini-2.5-flash-lite",
   temperature: 0,
   thinking: false,
   maxClaims: 5,
@@ -28,6 +28,12 @@ const baseConfig: RunConfig = {
   category: "",
   preferFresh: false,
   factCheckShortCircuit: false,
+};
+
+const TARGET = {
+  baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+  apiKey: "gem-key",
+  model: "gemini-2.5-flash-lite",
 };
 
 const SEARCH_TOOL: ToolDef = {
@@ -63,31 +69,21 @@ function toolResp(id: string, name: string, args: string) {
 beforeEach(() => {
   createMock.mockReset();
   ctorMock.mockReset();
-  delete process.env.OPENAI_COMPAT_API_KEY;
-  delete process.env.OPENAI_COMPAT_BASE_URL;
-  delete process.env.OPENAI_COMPAT_MODEL;
-  process.env.GEMINI_API_KEY = "gem-key";
 });
 
 describe("createOpenAICompatible", () => {
-  it("throws a clear error when no key is configured", () => {
-    delete process.env.GEMINI_API_KEY;
-    expect(() => createOpenAICompatible(baseConfig)).toThrow(/key/i);
-  });
-
-  it("defaults to the Gemini OpenAI-compatible endpoint and env key", () => {
-    createOpenAICompatible(baseConfig);
+  it("constructs the client with the target's base URL and key", () => {
+    createOpenAICompatible(baseConfig, TARGET);
     expect(ctorMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        apiKey: "gem-key",
-        baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-      }),
+      expect.objectContaining({ apiKey: "gem-key", baseURL: TARGET.baseURL }),
     );
   });
 
   it("askText sends system+user messages and returns the content", async () => {
     createMock.mockResolvedValue(textResp("the answer"));
-    const out = await createOpenAICompatible(baseConfig).askText("the question", { system: "sys" });
+    const out = await createOpenAICompatible(baseConfig, TARGET).askText("the question", {
+      system: "sys",
+    });
     expect(out).toBe("the answer");
     const body = createMock.mock.calls[0][0];
     expect(body.model).toBe("gemini-2.5-flash-lite");
@@ -99,7 +95,9 @@ describe("createOpenAICompatible", () => {
 
   it("askJSON parses JSON out of a fenced response", async () => {
     createMock.mockResolvedValue(textResp('```json\n{"stance":"refutes"}\n```'));
-    expect(await createOpenAICompatible(baseConfig).askJSON("q")).toEqual({ stance: "refutes" });
+    expect(await createOpenAICompatible(baseConfig, TARGET).askJSON("q")).toEqual({
+      stance: "refutes",
+    });
   });
 
   it("askWithTools translates tools, runs the loop, feeds the result back, and returns the final text", async () => {
@@ -108,7 +106,7 @@ describe("createOpenAICompatible", () => {
       .mockResolvedValueOnce(textResp("found a wire report"));
     const onTool = vi.fn().mockResolvedValue([{ url: "https://wire/x" }]);
 
-    const result = await createOpenAICompatible(baseConfig).askWithTools("go", {
+    const result = await createOpenAICompatible(baseConfig, TARGET).askWithTools("go", {
       system: "gather",
       tools: [SEARCH_TOOL],
       onTool,
@@ -148,7 +146,7 @@ describe("createOpenAICompatible", () => {
   it("askWithTools stops at maxSteps when the model keeps calling tools", async () => {
     createMock.mockResolvedValue(toolResp("c", "search_evidence", "{}"));
     const onTool = vi.fn().mockResolvedValue([]);
-    const result = await createOpenAICompatible(baseConfig).askWithTools("go", {
+    const result = await createOpenAICompatible(baseConfig, TARGET).askWithTools("go", {
       tools: [SEARCH_TOOL],
       onTool,
       maxSteps: 2,

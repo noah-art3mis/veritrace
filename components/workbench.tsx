@@ -208,7 +208,7 @@ export default function Workbench() {
               aria-expanded={showSettings}
               className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.16em] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)]"
             >
-              ⚙ {MODELS[settings.model]} · temp{" "}
+              ⚙ {MODELS[settings.model].label} · temp{" "}
               {!supportsTemperature(settings.model)
                 ? "n/a"
                 : settings.thinking

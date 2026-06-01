@@ -18,6 +18,7 @@ import {
   EXA_CATEGORIES,
   supportsTemperature,
   type ModelId,
+  type ModelInfo,
   type ExaCategory,
 } from "@/lib/run-config";
 
@@ -111,9 +112,9 @@ export function SettingsPanel({
           onChange={(e) => set("model", e.target.value as ModelId)}
           className={fieldCls}
         >
-          {(Object.entries(MODELS) as [ModelId, string][]).map(([id, name]) => (
+          {(Object.entries(MODELS) as [ModelId, ModelInfo][]).map(([id, info]) => (
             <option key={id} value={id}>
-              {name}
+              {info.label} · ${info.inputCost}/${info.outputCost} per 1M
             </option>
           ))}
         </select>
