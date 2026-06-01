@@ -1,6 +1,6 @@
 import { streamPipeline } from "@/lib/pipeline/stream";
 import { createReasoner } from "@/lib/reasoner";
-import { createExaSearch } from "@/lib/exa";
+import { createSearchProvider } from "@/lib/search";
 import { createFactCheckLookup } from "@/lib/factcheck";
 import { parseConfig } from "@/lib/run-config";
 import { apiRateLimiter, clientIp } from "@/lib/rate-limit";
@@ -57,14 +57,14 @@ export async function POST(request: Request) {
     const config = parseConfig(body.config);
     deps = {
       ask: createReasoner(config),
-      search: createExaSearch({
+      search: createSearchProvider({
         exaKey: config.exaKey,
         numResults: config.maxSources,
         maxChars: config.maxChars,
         deepSearch: config.deepSearch,
         category: config.category,
         preferFresh: config.preferFresh,
-      }),
+      }).search,
       maxClaims: config.maxClaims,
       maxQuestions: config.maxQuestions,
       // Opt-in fact-check short-circuit. Built only when the flag is on, so leaving it off
