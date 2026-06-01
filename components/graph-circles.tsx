@@ -1,6 +1,12 @@
 import { memo, useContext } from "react";
 import { Handle, Position, type NodeProps, type NodeTypes } from "@xyflow/react";
-import type { SourceNode, ClaimNode, QuestionNode, EvidenceNode, AppNode } from "@/lib/graph-to-flow";
+import type {
+  SourceNode,
+  ClaimNode,
+  QuestionNode,
+  EvidenceNode,
+  AppNode,
+} from "@/lib/graph-to-flow";
 import { CIRCLE_DIAMETER } from "@/lib/radial-layout";
 import { VERDICT_META, STANCE_META, RELIABILITY_META, ACCENT } from "@/lib/visuals";
 import { isDeciding } from "@/lib/pipeline/verdict";
@@ -226,19 +232,28 @@ export function NodeDetail({
         <span className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-[var(--ink-3)]">
           {head.kicker}
         </span>
-        <span className="font-mono text-[9.5px] uppercase tracking-wider" style={{ color: head.colour }}>
+        <span
+          className="font-mono text-[9.5px] uppercase tracking-wider"
+          style={{ color: head.colour }}
+        >
           ● {head.colourWord}
         </span>
       </div>
 
       {node.type === "source" && (
-        <p className="font-display text-[13px] leading-[1.5] text-[var(--ink-1)]">{node.data.item.text}</p>
+        <p className="font-display text-[13px] leading-[1.5] text-[var(--ink-1)]">
+          {node.data.item.text}
+        </p>
       )}
       {node.type === "claim" && (
-        <p className="text-[12px] font-medium leading-[1.4] text-[var(--ink-1)]">{node.data.item.text}</p>
+        <p className="text-[12px] font-medium leading-[1.4] text-[var(--ink-1)]">
+          {node.data.item.text}
+        </p>
       )}
       {node.type === "question" && (
-        <p className="font-mono text-[11px] leading-[1.5] text-[var(--ink-2)]">{node.data.item.text}</p>
+        <p className="font-mono text-[11px] leading-[1.5] text-[var(--ink-2)]">
+          {node.data.item.text}
+        </p>
       )}
       {node.type === "evidence" && (
         <a
@@ -258,7 +273,10 @@ export function NodeDetail({
           )}
           {node.type === "evidence" && (
             <>
-              <p className="font-display border-l pl-2 text-[11px] italic leading-[1.45] text-[var(--ink-2)]" style={{ borderColor: head.colour }}>
+              <p
+                className="font-display border-l pl-2 text-[11px] italic leading-[1.45] text-[var(--ink-2)]"
+                style={{ borderColor: head.colour }}
+              >
                 “{node.data.item.passage}”
               </p>
               <Row label="type">{node.data.item.sourceType}</Row>

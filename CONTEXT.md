@@ -24,7 +24,7 @@ A retrieved primary source (or an extracted passage from one) that answers a Que
 _Avoid_: source (use for the document, not the retrieved item), result
 
 **Deciding evidence**:
-Evidence strong enough to actually move a Claim's Verdict — **high or medium reliability with sufficient stance-confidence**. Low-reliability or low-confidence Evidence is still shown, but can only *contextualize*: it never establishes or flips a Verdict. The minority of Evidence that does the load-bearing work behind a Verdict — and therefore the first thing a Fact-checker should scrutinise.
+Evidence strong enough to actually move a Claim's Verdict — **high or medium reliability with sufficient stance-confidence**. Low-reliability or low-confidence Evidence is still shown, but can only _contextualize_: it never establishes or flips a Verdict. The minority of Evidence that does the load-bearing work behind a Verdict — and therefore the first thing a Fact-checker should scrutinise.
 _Avoid_: strong evidence (vague), relevant evidence, confident
 
 **Verdict**:
@@ -57,7 +57,7 @@ A post-run summary panel that auto-opens (left slide-in) when a run resolves: th
 _Avoid_: report, verdict (the brief restates the graph's Verdict, it does not author one), explanation (the graph is the explanation)
 
 **Constellation view**:
-An **additive, radial overview rendering** of the Evidence graph — every node a colour-coded circle, detail hidden until the Fact-checker interacts — for reading the *shape* of a large investigation at a glance. A second rendering of the same four layers, **not** a new graph. Secondary to the default card rendering, which remains *the* explanation: a circle is a way *into* a node (click opens its card), never a replacement for it. Earns its place only when the card graph gets too big to read.
+An **additive, radial overview rendering** of the Evidence graph — every node a colour-coded circle, detail hidden until the Fact-checker interacts — for reading the _shape_ of a large investigation at a glance. A second rendering of the same four layers, **not** a new graph. Secondary to the default card rendering, which remains _the_ explanation: a circle is a way _into_ a node (click opens its card), never a replacement for it. Earns its place only when the card graph gets too big to read.
 _Avoid_: replacing the Evidence graph; "the graph" (overloaded — that's the card rendering); network/force graph (the layers are preserved, not dissolved into a blob)
 
 ## Relationships

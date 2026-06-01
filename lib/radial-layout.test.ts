@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import { radialLayout, buildRadialEdges, CIRCLE_DIAMETER } from "./radial-layout";
 import type { FactGraph, EvidenceItem } from "./graph-types";
 
-function ev(id: string, questionId: string, stance: EvidenceItem["stance"] = "supports"): EvidenceItem {
+function ev(
+  id: string,
+  questionId: string,
+  stance: EvidenceItem["stance"] = "supports",
+): EvidenceItem {
   return {
     id,
     questionId,

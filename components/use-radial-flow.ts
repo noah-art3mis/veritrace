@@ -42,7 +42,12 @@ export function useRadialFlow(graph: FactGraph): { nodes: AppNode[]; edges: Edge
       // → React Flow skips the re-render), exactly as the card hook does.
       const x = pos ? pos.x - pos.diameter / 2 : 0;
       const y = pos ? pos.y - pos.diameter / 2 : 0;
-      if (prev && prev.data.item === raw.data.item && prev.position.x === x && prev.position.y === y) {
+      if (
+        prev &&
+        prev.data.item === raw.data.item &&
+        prev.position.x === x &&
+        prev.position.y === y
+      ) {
         nextById.set(raw.id, prev);
         return prev;
       }

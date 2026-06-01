@@ -4,13 +4,13 @@
 
 ## Context
 
-The default card-based Evidence graph (dagre left-to-right layout, React Flow) becomes hard to read when an investigation is large: Evidence is the populous rank, cards stack, and `fitView` zooms everything down to an illegible field of boxes (the `EV_COLS` grid hack in `lib/graph-to-flow.ts` already fights this). We want a way to read the *shape* of a big investigation at a glance — without sacrificing the "shows its work" detail the cards provide.
+The default card-based Evidence graph (dagre left-to-right layout, React Flow) becomes hard to read when an investigation is large: Evidence is the populous rank, cards stack, and `fitView` zooms everything down to an illegible field of boxes (the `EV_COLS` grid hack in `lib/graph-to-flow.ts` already fights this). We want a way to read the _shape_ of a big investigation at a glance — without sacrificing the "shows its work" detail the cards provide.
 
 ## Decision
 
-Add a **Constellation view**: an **additive, radial overview** rendering of the same four layers (Source → Claims → Questions → Evidence). It is **not** a replacement for the cards, which stay the default and remain *the* explanation. The specific choices:
+Add a **Constellation view**: an **additive, radial overview** rendering of the same four layers (Source → Claims → Questions → Evidence). It is **not** a replacement for the cards, which stay the default and remain _the_ explanation. The specific choices:
 
-- **Scope.** Additive view mode. A circle is a way *into* a node — click opens its existing card — never a replacement for it. **Manual toggle**, card view default; may **auto-suggest** switching once node count crosses a threshold.
+- **Scope.** Additive view mode. A circle is a way _into_ a node — click opens its existing card — never a replacement for it. **Manual toggle**, card view default; may **auto-suggest** switching once node count crosses a threshold.
 - **Geometry.** Deterministic radial tidy tree: Source at the centre, Claims → Questions → Evidence on successive rings. Each Claim owns an **angular wedge sized by its leaf (Evidence) count**, subdividing into its Questions and their Evidence, so a claim's whole subtree is one readable pie-slice. Depth = radius, so any circle's layer is readable from its ring alone.
 - **Circle encoding** (one channel per signal, to keep a small dot legible):
   - **Fill** = the layer's semantic axis — **Verdict** for Source/Claim, **Stance** for Evidence. Questions stay neutral/cyan (process status), **never** red/green (preserves the `visuals.ts` discipline that only verdict+stance are saturated).
@@ -25,7 +25,7 @@ Add a **Constellation view**: an **additive, radial overview** rendering of the 
 ## Considered options (rejected)
 
 - **Replace the cards entirely** — no. The cards are the headline "shows its work" differentiator; an info-hidden overview can't carry the explanation.
-- **Force-directed blob layout (true Obsidian-style)** — no. It dissolves the four layers, which `CONTEXT.md` insists *are* the explanation. Force is retained only as transition easing.
+- **Force-directed blob layout (true Obsidian-style)** — no. It dissolves the four layers, which `CONTEXT.md` insists _are_ the explanation. Force is retained only as transition easing.
 - **Cap-based stable slots during streaming** — no. Chose accurate leaf-count proportions + a tween over rotation-free-but-approximate slots.
 - **Add `d3-hierarchy`** — no. Leaf-weighted wedges need custom angular separation anyway; a tailored `radialLayout()` is simpler and keeps the bundle lean (ADR 0001's ethos).
 

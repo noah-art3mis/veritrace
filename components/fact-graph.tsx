@@ -92,7 +92,9 @@ export default function FactGraphCanvas({
         onNodeMouseLeave={() => isRadial && setHoveredId(null)}
         onNodeClick={(_, n) => {
           if (!isRadial) return;
-          setPinnedId((prev) => (prev === n.id ? (setOpenId(n.id), prev) : (setOpenId(null), n.id)));
+          setPinnedId((prev) =>
+            prev === n.id ? (setOpenId(n.id), prev) : (setOpenId(null), n.id),
+          );
         }}
         onPaneClick={() => {
           setPinnedId(null);
@@ -148,12 +150,7 @@ export default function FactGraphCanvas({
 
         {openNode && (
           <Panel position="top-center" className="!mt-3">
-            <NodeDetail
-              node={openNode}
-              full
-              onOpen={() => {}}
-              onClose={() => setOpenId(null)}
-            />
+            <NodeDetail node={openNode} full onOpen={() => {}} onClose={() => setOpenId(null)} />
           </Panel>
         )}
 
