@@ -29,6 +29,13 @@ export const InternalsContext = createContext(false);
  */
 export const WithholdVerdictContext = createContext(false);
 
+/**
+ * Optional callback to re-include a relevance-dropped claim (#33): the user overrides the filter
+ * and the claim is re-resolved (questions → search → verdict) in place. Provided by
+ * FactGraphCanvas from the workbench; null when re-include isn't wired (e.g. the static mock).
+ */
+export const ReincludeContext = createContext<((claim: ClaimItem) => void) | null>(null);
+
 const handleStyle = { width: 7, height: 7, border: 0, background: "var(--ink-4)" };
 const IN = <Handle type="target" position={Position.Left} style={handleStyle} />;
 const OUT = <Handle type="source" position={Position.Right} style={handleStyle} />;
@@ -248,6 +255,7 @@ export function ClaimCard({
   withHandles?: boolean;
 }) {
   const internals = useContext(InternalsContext);
+  const reinclude = useContext(ReincludeContext);
   const dropped = isRelevanceDropped(item);
   const m = item.verdict ? VERDICT_META[item.verdict] : null;
   const accent = m?.color ?? "var(--accent)";
@@ -301,9 +309,25 @@ export function ClaimCard({
         </p>
       )}
       {dropped && (
-        <p className="mt-2 font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)]">
-          ▽ background · not the contested claim — segmented out, not checked
-        </p>
+        <div className="mt-2 flex flex-col gap-1.5">
+          <p className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)]">
+            ▽ background · not the contested claim — segmented out, not checked
+          </p>
+          {/* Override the relevance filter and search this claim after all (#33). The handler
+              re-resolves it in place; null when re-include isn't wired (e.g. the static mock). */}
+          {reinclude && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                reinclude(item);
+              }}
+              className="self-start rounded-md border border-[var(--line-2)] px-2 py-1 font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-2)] transition-colors hover:border-[var(--accent)] hover:text-[var(--ink-1)]"
+            >
+              ↑ re-include &amp; search
+            </button>
+          )}
+        </div>
       )}
       {!dropped && item.rationale && (
         <p
