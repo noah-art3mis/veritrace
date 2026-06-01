@@ -229,8 +229,7 @@ export default function Workbench() {
               aria-label={inputOpen ? "Collapse input" : "Expand input"}
               className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)] md:cursor-default"
             >
-              <span className="md:hidden text-[var(--ink-2)]">{inputOpen ? "▾" : "▸"}</span>▣ Paste
-              source text · the artifact under examination
+              <span className="md:hidden text-[var(--ink-2)]">{inputOpen ? "▾" : "▸"}</span>▣
             </button>
             <button
               type="button"
@@ -263,7 +262,7 @@ export default function Workbench() {
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="A tweet, WhatsApp forward, or Facebook caption… VERITRACE decomposes it into checkable claims and gathers primary sources, live."
+                placeholder="Paste a tweet, WhatsApp forward, or Facebook caption here… VERITRACE decomposes it into checkable claims and gathers primary sources, live."
                 rows={2}
                 className="w-full resize-none bg-transparent px-3.5 py-2.5 text-[13.5px] leading-relaxed text-[var(--ink-1)] placeholder:italic placeholder:text-[var(--ink-3)] focus:outline-none"
               />
