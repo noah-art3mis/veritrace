@@ -25,8 +25,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 /** AVeriTeC's 4 labels → our Verdict enum. A 1:1 mapping — AVeriTeC is where ours came from. */
 export const AVERITEC_LABELS = {
-  "Supported": "supported",
-  "Refuted": "refuted",
+  Supported: "supported",
+  Refuted: "refuted",
   "Conflicting Evidence/Cherrypicking": "conflicting",
   "Not Enough Evidence": "nei",
 };
@@ -34,15 +34,15 @@ export const AVERITEC_LABELS = {
 /** X-Fact's veracity labels (7-way, lowercased) → our Verdict enum. Lossy by design:
  *  half-true/misleading collapse to `conflicting`; unverifiable/other to `nei`. */
 export const XFACT_LABELS = {
-  "true": "supported",
+  true: "supported",
   "mostly true": "supported",
-  "false": "refuted",
+  false: "refuted",
   "mostly false": "refuted",
   "partly true/misleading": "conflicting",
   "half true": "conflicting",
   "complicated/hard to categorise": "nei",
-  "other": "nei",
-  "unverified": "nei",
+  other: "nei",
+  unverified: "nei",
 };
 
 // ---- Helpers ----------------------------------------------------------------------------
@@ -111,9 +111,7 @@ export function fromAveritec(rec, { split = "eval", index = 0 } = {}) {
         .filter((q) => q && q.question)
         .map((q) => ({
           question: q.question,
-          keyEvidenceUrls: dedupe(
-            (q.answers || []).map((a) => a && a.source_url).filter(Boolean),
-          ),
+          keyEvidenceUrls: dedupe((q.answers || []).map((a) => a && a.source_url).filter(Boolean)),
         }))
     : [];
 
@@ -225,7 +223,11 @@ function convertAveritec(file, opts) {
   data.forEach((rec, i) => {
     const g = fromAveritec(rec, { split: opts.split, index: i });
     if (!g) return;
-    if (opts.site && !`${g.source.org} ${g.source.url}`.toLowerCase().includes(opts.site.toLowerCase())) return;
+    if (
+      opts.site &&
+      !`${g.source.org} ${g.source.url}`.toLowerCase().includes(opts.site.toLowerCase())
+    )
+      return;
     out.push(g);
     kept++;
   });
@@ -234,7 +236,9 @@ function convertAveritec(file, opts) {
 }
 
 function convertXfact(file, opts) {
-  const lines = readFileSync(file, "utf8").split(/\r?\n/).filter((l) => l.length);
+  const lines = readFileSync(file, "utf8")
+    .split(/\r?\n/)
+    .filter((l) => l.length);
   if (!lines.length) return [];
   const header = lines[0].split("\t");
   const idx = {};
@@ -246,7 +250,11 @@ function convertXfact(file, opts) {
     const g = fromXfactRow(cols, idx, { split: opts.split, index: i });
     if (!g) continue;
     if (opts.lang && g.source.language.toLowerCase() !== opts.lang.toLowerCase()) continue;
-    if (opts.site && !`${g.source.org} ${g.source.url}`.toLowerCase().includes(opts.site.toLowerCase())) continue;
+    if (
+      opts.site &&
+      !`${g.source.org} ${g.source.url}`.toLowerCase().includes(opts.site.toLowerCase())
+    )
+      continue;
     out.push(g);
     kept++;
   }
@@ -262,7 +270,8 @@ function main() {
     );
     process.exit(2);
   }
-  const records = opts.source === "averitec" ? convertAveritec(opts.file, opts) : convertXfact(opts.file, opts);
+  const records =
+    opts.source === "averitec" ? convertAveritec(opts.file, opts) : convertXfact(opts.file, opts);
   const jsonl = records.map((r) => JSON.stringify(r)).join("\n") + (records.length ? "\n" : "");
   if (opts.out) {
     writeFileSync(opts.out, jsonl);

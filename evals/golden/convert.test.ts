@@ -34,8 +34,12 @@ describe("fromAveritec", () => {
   it("maps the four AVeriTeC labels onto our enum", () => {
     expect(present(fromAveritec({ ...rec, label: "Supported" })).gold.verdict).toBe("supported");
     expect(present(fromAveritec({ ...rec, label: "Refuted" })).gold.verdict).toBe("refuted");
-    expect(present(fromAveritec({ ...rec, label: "Conflicting Evidence/Cherrypicking" })).gold.verdict).toBe("conflicting");
-    expect(present(fromAveritec({ ...rec, label: "Not Enough Evidence" })).gold.verdict).toBe("nei");
+    expect(
+      present(fromAveritec({ ...rec, label: "Conflicting Evidence/Cherrypicking" })).gold.verdict,
+    ).toBe("conflicting");
+    expect(present(fromAveritec({ ...rec, label: "Not Enough Evidence" })).gold.verdict).toBe(
+      "nei",
+    );
   });
 
   it("derives org from the article host, keeps the raw rating, slugs claim types", () => {

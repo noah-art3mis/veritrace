@@ -29,20 +29,23 @@ One [`GoldenClaim`](./schema.ts) per line of JSONL. Three concerns kept separate
     "verdict": "refuted",
     "justification": "Official BLS figures put the rate at 3.6%.",
     "questions": [
-      { "question": "What was the 2022 unemployment rate?", "keyEvidenceUrls": ["https://bls.gov/data"] }
+      {
+        "question": "What was the 2022 unemployment rate?",
+        "keyEvidenceUrls": ["https://bls.gov/data"],
+      },
     ],
-    "keyEvidenceUrls": ["https://bls.gov/data"]
+    "keyEvidenceUrls": ["https://bls.gov/data"],
   },
   "source": {
     "org": "snopes",
     "url": "https://www.snopes.com/fact-check/unemployment/",
     "originalRating": "Refuted",
     "language": "en",
-    "benchmark": "averitec"
+    "benchmark": "averitec",
   },
   "license": "CC-BY-NC-4.0",
   "split": "eval",
-  "tags": ["numerical-claim", "de-novo-checkable"]
+  "tags": ["numerical-claim", "de-novo-checkable"],
 }
 ```
 
@@ -52,14 +55,14 @@ adopted, so AVeriTeC imports are a 1:1 label map.
 
 ## Source benchmarks
 
-| Benchmark | Covers | Labels | License | Role here |
-|---|---|---|---|---|
-| **[AVeriTeC](https://fever.ai/dataset/averitec.html)** (NeurIPS'23) | 4,568 real claims, ~50 orgs **incl. Snopes & Full Fact** | Supported / Refuted / Conflicting-Cherrypicking / Not-Enough-Evidence — **identical to ours** | CC-BY-NC-4.0 | **Primary.** English Snopes/Full Fact golds; claim→Q/A→evidence structure mirrors our graph; built to avoid temporal leakage. |
-| **[X-Fact](https://github.com/utahnlp/x-fact)** (ACL'21) | 25 languages incl. **Portuguese** | 7-way veracity | MIT | Route to **Aos Fatos / pt-BR** in a citable form. |
-| [LIAR / LIAR-PLUS](https://aclanthology.org/P17-2067/) | 12.8k PolitiFact | 6-way | research use | Scale; metadata-rich; no evidence trail. |
-| [MultiFC](https://arxiv.org/abs/1909.03242) | 36k from 26 sites incl. Snopes | per-site | research use | Largest real-world multi-domain; noisy labels. |
-| [FEVER](https://fever.ai/) / [FEVEROUS](https://fever.ai/dataset/feverous.html) / [VitaminC](https://github.com/TalSchuster/VitaminC) | Wikipedia-derived | S / R / NEI | varies | Synthetic claims — good for retrieval/NLI, weak for real-world checkworthiness. |
-| [CLEF CheckThat!](https://checkthat.gitlab.io/) | check-worthiness | binary | research use | For grading our `checkworthy` triage stage specifically. |
+| Benchmark                                                                                                                             | Covers                                                   | Labels                                                                                        | License      | Role here                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| **[AVeriTeC](https://fever.ai/dataset/averitec.html)** (NeurIPS'23)                                                                   | 4,568 real claims, ~50 orgs **incl. Snopes & Full Fact** | Supported / Refuted / Conflicting-Cherrypicking / Not-Enough-Evidence — **identical to ours** | CC-BY-NC-4.0 | **Primary.** English Snopes/Full Fact golds; claim→Q/A→evidence structure mirrors our graph; built to avoid temporal leakage. |
+| **[X-Fact](https://github.com/utahnlp/x-fact)** (ACL'21)                                                                              | 25 languages incl. **Portuguese**                        | 7-way veracity                                                                                | MIT          | Route to **Aos Fatos / pt-BR** in a citable form.                                                                             |
+| [LIAR / LIAR-PLUS](https://aclanthology.org/P17-2067/)                                                                                | 12.8k PolitiFact                                         | 6-way                                                                                         | research use | Scale; metadata-rich; no evidence trail.                                                                                      |
+| [MultiFC](https://arxiv.org/abs/1909.03242)                                                                                           | 36k from 26 sites incl. Snopes                           | per-site                                                                                      | research use | Largest real-world multi-domain; noisy labels.                                                                                |
+| [FEVER](https://fever.ai/) / [FEVEROUS](https://fever.ai/dataset/feverous.html) / [VitaminC](https://github.com/TalSchuster/VitaminC) | Wikipedia-derived                                        | S / R / NEI                                                                                   | varies       | Synthetic claims — good for retrieval/NLI, weak for real-world checkworthiness.                                               |
+| [CLEF CheckThat!](https://checkthat.gitlab.io/)                                                                                       | check-worthiness                                         | binary                                                                                        | research use | For grading our `checkworthy` triage stage specifically.                                                                      |
 
 Why AVeriTeC is the anchor: we already borrowed its four-way verdict, so its public dev set
 drops straight into this format and gives us a **free external benchmark** to track against.
@@ -99,7 +102,7 @@ a small hand-checked subset under version control for CI; regenerate the rest on
    X-Fact's 7-way map lives in `XFACT_LABELS` in `convert.mjs`. We always store the org's raw
    label in `source.originalRating` so the mapping can be revisited. Spot-check it.
 
-2. **Stratify de-novo-checkable vs provenance claims.** VERITRACE checks claims *de novo* and
+2. **Stratify de-novo-checkable vs provenance claims.** VERITRACE checks claims _de novo_ and
    will score ~0 on image/quote-provenance items ("did X really say Y", "is this photo real")
    — that's a category mismatch, not a pipeline failure. Tag those `provenance` and report
    accuracy on the `de-novo-checkable` slice separately, the same split the demo corpus draws
