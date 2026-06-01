@@ -108,7 +108,9 @@ export async function resolveQuestion(
     { system: GATHER_SYSTEM, tools: [SEARCH_TOOL], onTool, maxSteps: MAX_SEARCHES, maxTokens: 600 },
   );
 
-  const classified = await classifyEvidence(claim, question, [...collected.values()], deps.ask);
+  // Drop circular re-reporting that just restates the claim before paying to classify it.
+  const gathered = dropClaimEchoes(claim.text, [...collected.values()]);
+  const classified = await classifyEvidence(claim, question, gathered, deps.ask);
   const evidence = rankAndCapEvidence(classified, EVIDENCE_PER_QUESTION_CAP);
   const trace: QuestionTrace = {
     hydePassage: hypothetical,
@@ -116,6 +118,96 @@ export async function resolveQuestion(
     gatherSummary: result.text.trim(),
   };
   return { evidence, trace };
+}
+
+// Claim-echo filter (HerO reranking.py: drop a passage when the claim is >92% of it). Circular
+// "evidence" — re-reporting that merely restates the viral claim without verifying it — wastes
+// classify tokens and can masquerade as support. We catch the blatant case mechanically before
+// classification, as a cheap complement to (not a replacement for) the classifier's skepticism.
+// No embeddings in the critical path, so we use token-Jaccard instead of HerO's cosine.
+const ECHO_JACCARD = 0.9; // near-identical token sets only — very conservative
+const ECHO_MAX_LEN_RATIO = 1.4; // a passage much longer than the claim has room to verify; keep it
+
+// Verification/stance cues. A passage that adds any of these is doing work the claim doesn't —
+// quoting then refuting/confirming — so it survives regardless of overlap, even for long claims
+// where one appended word barely moves Jaccard. (issue #14: never drop a quote-then-refute.)
+const VERIFY_CUES = new Set([
+  "false",
+  "fake",
+  "hoax",
+  "debunked",
+  "debunk",
+  "misleading",
+  "incorrect",
+  "untrue",
+  "baseless",
+  "unfounded",
+  "denied",
+  "denies",
+  "deny",
+  "no",
+  "not",
+  "never",
+  "confirmed",
+  "confirms",
+  "verified",
+  "true",
+  "correct",
+  "actually",
+  "however",
+  "but",
+  "despite",
+  "contrary",
+  "misinformation",
+  "disinformation",
+  "rumor",
+  "rumour",
+  "satire",
+  "fabricated",
+  "doctored",
+  "manipulated",
+  "context",
+  "according",
+  "reportedly",
+  "alleged",
+  "allegedly",
+]);
+
+function echoTokens(s: string): string[] {
+  return s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let inter = 0;
+  for (const t of a) if (b.has(t)) inter++;
+  return inter / (a.size + b.size - inter);
+}
+
+/**
+ * Drop retrieved evidence whose excerpt is a near-duplicate of the claim — circular "evidence"
+ * that just restates the claim. Pure. Conservative on purpose: a passage is removed only when it
+ * is SHORT (≈ the claim's length), shares ≥ ECHO_JACCARD of its tokens with the claim, and adds
+ * NO verification cue. A long article that quotes the claim, or a short quote-then-refute, both
+ * survive — so this never costs us a real source.
+ */
+export function dropClaimEchoes(claimText: string, evidence: RawEvidence[]): RawEvidence[] {
+  const claimToks = echoTokens(claimText);
+  if (claimToks.length === 0) return evidence; // nothing to compare against
+  const claimSet = new Set(claimToks);
+
+  return evidence.filter((e) => {
+    const passToks = echoTokens(e.passage || e.text);
+    if (passToks.length === 0) return true;
+    if (passToks.length > claimToks.length * ECHO_MAX_LEN_RATIO) return true; // long enough to verify
+    if (passToks.some((t) => !claimSet.has(t) && VERIFY_CUES.has(t))) return true; // does real work
+    return jaccard(claimSet, new Set(passToks)) < ECHO_JACCARD; // keep when NOT a near-duplicate
+  });
 }
 
 const RELIABILITY_RANK: Record<EvidenceItem["reliability"], number> = {
