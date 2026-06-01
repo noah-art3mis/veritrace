@@ -25,7 +25,7 @@ function buildSystem(maxClaims: number): string {
   return `You are the TRIAGE stage of VERITRACE. You receive the original "source text" and the atomic utterances segmented from it. For EACH utterance, in the SAME ORDER, produce one object:
 
 - "text": DECONTEXTUALIZE the utterance into a self-contained, searchable English claim — inject the date, place, and actor from the source so it stands alone ("they seized the airport" → "Armed CJNG members seized Guadalajara International Airport around 22 February 2026"). Do NOT invent specifics (names, numbers, institutions) absent from the source — over-specification is a failure. PRESERVE QUANTIFIER SCOPE exactly as the source states it: do not inflate a single actor into a group or a group into "everyone", and do not narrow a group to one person. If the source says "protesters threatened X" keep it as the collective claim "protesters [plural] threatened X" — it is a DIFFERENT claim from "a protester threatened X", and the evidence required to support each differs.
-- "relevance": a 0.0–1.0 score of how LOAD-BEARING and contested this claim is — how central it is to what a fact-check of this source would set out to verify. Use 1.0 for the central contested assertion(s); mid-range for secondary-but-real claims; and 0.0 for trivial, uncontested background, presuppositions, or entailments nobody disputes ("Springfield is a city", "the city has residents", "immigrants exist"). ALSO score 0.0 for any utterance that RESTATES another you are scoring higher — the same proposition in different words, or the same claim plus a modifier already implied by it ("X promised Y" vs "X promised Y if elected" when the source's promise was already conditional). Two claims are distinct only if they could independently be true or false; give only ONE of a set of restatements a non-zero score. We search the highest-scored claims first (up to ${maxClaims} per run); 0.0-scored claims are shown but never searched.
+- "relevance": a 0.0–1.0 score of how LOAD-BEARING and contested this claim is — how central it is to what a fact-check of this source would set out to verify. Use 1.0 for the central contested assertion(s); mid-range for secondary-but-real claims; and 0.0 for trivial, uncontested background, presuppositions, or entailments nobody disputes ("Springfield is a city", "the city has residents", "immigrants exist"). ALSO score 0.0 for any utterance that RESTATES another you are scoring higher — the same proposition in different words, or the same claim plus a modifier already implied by it ("X promised Y" vs "X promised Y if elected" when the source's promise was already conditional). Two claims are distinct only if they could independently be true or false; give only ONE of a set of restatements a non-zero score. CRUCIALLY, when the source bundles a contested assertion with an uncontested BACKGROUND PREMISE about the same actors — e.g. "Imran Khan criticized Macron" alongside the disputed "183 visas were cancelled, 118 deported" — score ONLY the contested assertion; the background premise that merely sets up or accompanies the contested claim is 0.0, because if it slips through as a true, supported claim it can flip the whole document's verdict. We search the highest-scored claims first (up to ${maxClaims} per run); low-relevance claims are shown but never searched.
 - "checkable": true if verifiable from text + web search (events, existence, official actions/denials, statements). false if verifying would require inspecting pixels or media provenance ("this video shows X", "the city is in flames" resting on an image).
 - "checkworthy": true if a verifiable factual assertion. false if subjective — opinion, value judgement, prediction, or rhetorical flourish.
 - "date": the ISO date (YYYY-MM-DD) of the event. Infer it even when not stated verbatim: use explicit dates, relative cues ("yesterday", "last week"), and the present period anchored by the provided "Today's date" for clearly current/breaking events. Use null ONLY when the claim is a standing fact with no single event date or the timing is genuinely unknowable — do not default to null for an obviously recent event.
@@ -72,16 +72,27 @@ export async function triageUtterances(
   return capSearchable(claims, maxClaims);
 }
 
-// Relevance-ordered selection (ADR 0005). Rank the type-searchable, non-background claims by
-// their relevance score and keep the top `maxClaims` — so the most load-bearing claims make
-// the cut rather than whichever happened to appear first. A 0.0 score is trivial background /
-// a restatement and is dropped regardless of the cap. Non-type-searchable claims (opinion /
-// media-provenance) keep relevant:true so their drop reason renders as uncheckable /
+// Minimum relevance for a claim to be searched/aggregated (#52, refining ADR 0005). A claim below
+// the floor is trivial background, a presupposition, or an entailed premise — not the contested,
+// load-bearing assertion — so it is shown but never searched, and never enters sourceVerdict.
+// Without this, a true-but-irrelevant premise ("X criticized Y") scored mildly relevant by the
+// model rode alongside the contested numbers and flipped the whole document to conflicting. The
+// floor is the deterministic backstop to the prompt's "score background 0.0" instruction; it
+// catches the low-but-nonzero mis-scores the prompt alone can't guarantee.
+const RELEVANCE_FLOOR = 0.3;
+
+// Relevance-ordered selection (ADR 0005). Rank the type-searchable, above-floor claims by their
+// relevance score and keep the top `maxClaims` — so the most load-bearing claims make the cut
+// rather than whichever happened to appear first. A score below RELEVANCE_FLOOR is trivial
+// background / a restatement and is dropped regardless of the cap. Non-type-searchable claims
+// (opinion / media-provenance) keep relevant:true so their drop reason renders as uncheckable /
 // uncheckworthy (not "irrelevant") and they never consume a slot. The sort is stable, so ties
 // fall back to source order — keeping selection deterministic for the pipeline tests.
 function capSearchable(claims: ClaimItem[], maxClaims: number): ClaimItem[] {
   const isTypeSearchable = (c: ClaimItem) => c.checkable && c.checkworthy !== false;
-  const candidates = claims.filter((c) => isTypeSearchable(c) && (c.relevanceScore ?? 1) > 0);
+  const candidates = claims.filter(
+    (c) => isTypeSearchable(c) && (c.relevanceScore ?? 1) >= RELEVANCE_FLOOR,
+  );
   const kept = new Set(
     [...candidates]
       .sort((a, b) => (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0))
