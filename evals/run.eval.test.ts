@@ -8,10 +8,9 @@
 //
 // EVAL_LIMIT=3 caps how many golds run (a fast, cheap smoke of the harness itself).
 //
-// KNOWN GAP — temporal bounding: collectGraph takes only the claim text, so retrieval is not
-// windowed to the gold's claimDate. A 2020 claim can match a 2024 source. AVeriTeC golds are
-// built to resist this, but date-bounded retrieval would need a pipeline change (thread the
-// date into search opts); tracked separately, not done here.
+// Temporal bounding: each gold's claimDate is passed as the pipeline's `asOf` date, so triage
+// anchors date inference to the claim's era and retrieval is windowed around it — a 2020 claim
+// won't pull 2024 debunks.
 
 import { describe, it, expect } from "vitest";
 import { fileURLToPath } from "node:url";
@@ -49,7 +48,7 @@ describe.skipIf(!hasKeys)("smoke-set eval (live pipeline)", () => {
       const limit = process.env.EVAL_LIMIT ? Number(process.env.EVAL_LIMIT) : golds.length;
       const subset = golds.slice(0, limit);
 
-      const items = await runEval(subset, (claim) => collectGraph(claim, deps));
+      const items = await runEval(subset, (claim, asOf) => collectGraph(claim, { ...deps, asOf }));
 
       const overall = scoreReport(items);
       const denovo = items.filter(isDeNovoCheckable);

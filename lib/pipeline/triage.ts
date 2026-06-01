@@ -35,11 +35,15 @@ export async function triageUtterances(
   utterances: Utterance[],
   ask: AnthropicCaller,
   maxClaims: number,
+  asOf?: string,
 ): Promise<ClaimItem[]> {
   if (utterances.length === 0) return [];
 
   const list = utterances.map((u, i) => `[${i}] ${u.text}`).join("\n");
-  const today = new Date().toISOString().slice(0, 10);
+  // Anchor date inference to the caller's as-of date when given (an eval gold's claimDate);
+  // otherwise the wall clock, for a freshly-pasted claim. This keeps a historical claim from
+  // being anchored to "now" and pulling post-claim sources.
+  const today = asOf ?? new Date().toISOString().slice(0, 10);
   const triaged = await ask.askJSON<Triaged[]>(
     `Today's date: ${today}.\n\nSource text:\n"""\n${sourceText}\n"""\n\nSegmented utterances:\n${list}\n\nTriage each utterance in order.`,
     { system: buildSystem(maxClaims), maxTokens: 2048 },
@@ -58,7 +62,9 @@ export async function triageUtterances(
       checkable: t.checkable !== false,
       checkworthy: t.checkworthy !== false,
       relevant: t.relevant !== false,
-      date: t.date ?? undefined,
+      // Model's own inference wins; fall back to the as-of date so retrieval is still
+      // windowed when the model can't date a decontextualised claim (else undefined).
+      date: t.date ?? asOf ?? undefined,
       injected: injected.length > 0 ? injected : undefined,
       verdict: null,
     } satisfies ClaimItem;

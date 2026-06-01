@@ -45,4 +45,20 @@ describe("runEval", () => {
     const items = await runEval(golds, async () => ({ source: { verdict: null } }));
     expect(items[0].predicted).toBeNull();
   });
+
+  it("threads the gold's claimDate to the runner as the as-of date (anti-leakage)", async () => {
+    const golds = [
+      { id: "g1", claim: "c1", claimDate: "2020-10-15", gold: { verdict: "nei" }, tags: [] },
+      { id: "g2", claim: "c2", gold: { verdict: "nei" }, tags: [] }, // no date → undefined
+    ];
+    const seen: Array<{ claim: string; asOf?: string }> = [];
+    await runEval(golds, async (claim: string, asOf?: string) => {
+      seen.push({ claim, asOf });
+      return { source: { verdict: "nei" } };
+    });
+    expect(seen).toEqual([
+      { claim: "c1", asOf: "2020-10-15" },
+      { claim: "c2", asOf: undefined },
+    ]);
+  });
 });
