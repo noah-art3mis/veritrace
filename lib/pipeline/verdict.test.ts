@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { claimVerdict, sourceVerdict, tallyClaims } from "./verdict";
+import { claimVerdict, isDeciding, sourceVerdict, tallyClaims } from "./verdict";
 import type { ClaimItem, EvidenceItem, Stance, Verdict } from "../graph-types";
 
 // Verdict aggregation is the one piece of "judgement" VERITRACE states rather than
@@ -109,6 +109,27 @@ describe("claimVerdict", () => {
 
   it("treats an opinion-typed deciding source as non-primary (still abstains)", () => {
     expect(claimVerdict(claim(), [evidence("supports", 0.9, "opinion")])).toBe("nei");
+  });
+
+  // A contextualizing source takes no side, so it cannot be the primary that satisfies the
+  // echo-chamber guard. Here the only primary merely contextualizes and the support is all
+  // secondary re-reporting — that's exactly the de-novo gap the guard exists to abstain on.
+  it("a contextualizing primary does not satisfy the primary-source guard", () => {
+    const ev = [evidence("contextualizes", 0.9, "primary"), evidence("supports", 0.9, "secondary")];
+    expect(claimVerdict(claim(), ev)).toBe("nei");
+  });
+});
+
+describe("isDeciding — only a committal, reliable, confident source can move a verdict", () => {
+  it("excludes contextualizing evidence even when reliable and confident", () => {
+    // Contextual background neither supports nor refutes, so it must not read as decision-grade
+    // (it must not earn the deciding star nor count toward the primary guard).
+    expect(isDeciding(evidence("contextualizes", 0.95))).toBe(false);
+  });
+
+  it("includes a confident, reliable, committal source", () => {
+    expect(isDeciding(evidence("supports", 0.8))).toBe(true);
+    expect(isDeciding(evidence("refutes", 0.8))).toBe(true);
   });
 });
 
