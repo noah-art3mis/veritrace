@@ -17,7 +17,7 @@ export default function Home() {
             Veri<span style={{ color: "var(--accent)" }}>trace</span>
           </h1>
           <span className="font-display mb-[3px] hidden text-[13.5px] italic leading-none text-[var(--ink-2)] md:inline">
-            the fact-checker that shows its work
+            observable AI fact checker
           </span>
         </div>
         <div className="flex items-center gap-4">
