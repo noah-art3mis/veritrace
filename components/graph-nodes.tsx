@@ -12,6 +12,14 @@ import { isRelevanceDropped } from "@/lib/pipeline/claim-status";
  */
 export const InternalsContext = createContext(false);
 
+/**
+ * Whether to withhold the machine's aggregate Verdict (the Source card's badge + support
+ * ratio) so the Fact-checker reaches their own conclusion. Driven by the "withhold verdict"
+ * setting; provided by FactGraphCanvas. Per-claim verdict badges and evidence stance colours
+ * are intentionally NOT gated by this — they're observations, not the headline verdict. Default off.
+ */
+export const WithholdVerdictContext = createContext(false);
+
 const handleStyle = { width: 7, height: 7, border: 0, background: "var(--ink-4)" };
 const IN = <Handle type="target" position={Position.Left} style={handleStyle} />;
 const OUT = <Handle type="source" position={Position.Right} style={handleStyle} />;
@@ -174,6 +182,10 @@ function QuestionTraceBlock({ trace }: { trace: QuestionTrace }) {
 /* The artifact under examination — the human-authored viral post, set in serif. */
 function SourceNodeCard({ data }: NodeProps<SourceNode>) {
   const { item } = data;
+  const withhold = useContext(WithholdVerdictContext);
+  // While analyzing (verdict still null) the badge is just a progress pulse, not a verdict, so
+  // keep showing it even when withholding — only a resolved verdict is the "pre-chewed" answer.
+  const hideVerdict = withhold && item.verdict !== null;
   return (
     <div
       className="vt-node relative rounded-lg border border-[var(--line-2)] bg-[var(--panel)] px-4 py-3.5"
@@ -182,10 +194,19 @@ function SourceNodeCard({ data }: NodeProps<SourceNode>) {
       <Ticks />
       <div className="mb-2.5 flex items-center justify-between px-1">
         <Kicker>Source · Exhibit</Kicker>
-        <VerdictBadge verdict={item.verdict} />
+        {hideVerdict ? (
+          <span
+            className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--ink-3)]"
+            title="Verdict withheld — read the evidence and reach your own conclusion"
+          >
+            verdict withheld
+          </span>
+        ) : (
+          <VerdictBadge verdict={item.verdict} />
+        )}
       </div>
       <p className="font-display px-1 text-[15px] leading-[1.5] text-[var(--ink-1)]">{item.text}</p>
-      {item.tally && <SupportRatio tally={item.tally} />}
+      {!hideVerdict && item.tally && <SupportRatio tally={item.tally} />}
       {OUT}
     </div>
   );

@@ -46,6 +46,13 @@ export interface Settings {
   googleFactCheckKey: string;
   /** Display-only: reveal the pipeline's hidden retrieval internals in the graph. */
   showInternals: boolean;
+  /**
+   * Display-only: hide the machine's aggregate Verdict (Source card badge + support ratio,
+   * Investigation brief verdict + narrative) so the Fact-checker reads the evidence and
+   * reaches their own conclusion. Makes the advisory-only stance literal. Per-claim badges
+   * and evidence stance colours stay — they're observations, not the verdict.
+   */
+  withholdVerdict: boolean;
   /** Display-only: show the graph's minimap (the navigator thumbnail). */
   showMinimap: boolean;
 }
@@ -66,6 +73,7 @@ export const DEFAULT_SETTINGS: Settings = {
   exaKey: "",
   googleFactCheckKey: "",
   showInternals: false,
+  withholdVerdict: false,
   showMinimap: true,
 };
 
@@ -351,6 +359,28 @@ export function SettingsPanel({
         </button>
         <span className="font-mono text-[9px] text-[var(--ink-4)]">
           HyDE seed, agent queries + summary, stance confidence, raw fragment.
+        </span>
+      </div>
+
+      {/* Withhold verdict — display-only; hides the machine's aggregate verdict so the
+          Fact-checker reaches their own conclusion (CONTEXT.md: the human makes the final verdict) */}
+      <div className="flex flex-col gap-1.5">
+        <label className={labelCls}>Withhold verdict</label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={settings.withholdVerdict}
+          onClick={() => set("withholdVerdict", !settings.withholdVerdict)}
+          className="inline-flex w-fit items-center gap-2 rounded-md border border-[var(--line-2)] bg-[var(--panel)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--ink-2)] transition-colors hover:border-[var(--accent)]"
+        >
+          <span
+            className="h-2.5 w-2.5 rounded-full transition-colors"
+            style={{ background: settings.withholdVerdict ? "var(--accent)" : "var(--line-2)" }}
+          />
+          {settings.withholdVerdict ? "Withheld" : "Shown"}
+        </button>
+        <span className="font-mono text-[9px] text-[var(--ink-4)]">
+          hide the machine&rsquo;s verdict · read the evidence and decide yourself
         </span>
       </div>
 

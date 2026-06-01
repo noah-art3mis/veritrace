@@ -12,7 +12,7 @@ import {
   type Node,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { nodeTypes, InternalsContext } from "./graph-nodes";
+import { nodeTypes, InternalsContext, WithholdVerdictContext } from "./graph-nodes";
 import { circleNodeTypes, NodeDetail } from "./graph-circles";
 import { useGraphFlow } from "./use-graph-flow";
 import { useRadialFlow } from "./use-radial-flow";
@@ -50,10 +50,12 @@ export default function FactGraphCanvas({
   graph,
   showInternals = false,
   showMinimap = true,
+  withholdVerdict = false,
 }: {
   graph: FactGraph;
   showInternals?: boolean;
   showMinimap?: boolean;
+  withholdVerdict?: boolean;
 }) {
   const [view, setView] = useState<ViewMode>("cards");
   // Peek-then-open (ADR 0003): hover/first-tap peeks (pinned), second click opens, pane clears.
@@ -86,97 +88,99 @@ export default function FactGraphCanvas({
   );
 
   return (
-    <InternalsContext.Provider value={showInternals}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={isRadial ? circleNodeTypes : nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.15 }}
-        minZoom={0.2}
-        maxZoom={1.5}
-        onlyRenderVisibleElements
-        nodesDraggable={!isRadial}
-        proOptions={{ hideAttribution: true }}
-        className="bg-transparent"
-        onNodeMouseEnter={(_, n) => isRadial && setHoveredId(n.id)}
-        onNodeMouseLeave={() => isRadial && setHoveredId(null)}
-        onNodeClick={(_, n) => {
-          if (!isRadial) return;
-          setPinnedId((prev) =>
-            prev === n.id ? (setOpenId(n.id), prev) : (setOpenId(null), n.id),
-          );
-        }}
-        onPaneClick={() => {
-          setPinnedId(null);
-          setOpenId(null);
-          setHoveredId(null);
-        }}
-      >
-        <FitOnChange dep={`${view}:${nodes.length}`} />
-        <Background variant={BackgroundVariant.Cross} gap={36} size={4} color="#18202c" />
-        <Controls
-          showInteractive={false}
-          className="!overflow-hidden !rounded-md !border !border-[var(--line)] !shadow-xl [&_button]:!border-[var(--line)] [&_button]:!bg-[var(--panel-2)] [&_button]:!fill-[var(--ink-2)] [&_button:hover]:!bg-[var(--line)]"
-        />
+    <WithholdVerdictContext.Provider value={withholdVerdict}>
+      <InternalsContext.Provider value={showInternals}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={isRadial ? circleNodeTypes : nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.15 }}
+          minZoom={0.2}
+          maxZoom={1.5}
+          onlyRenderVisibleElements
+          nodesDraggable={!isRadial}
+          proOptions={{ hideAttribution: true }}
+          className="bg-transparent"
+          onNodeMouseEnter={(_, n) => isRadial && setHoveredId(n.id)}
+          onNodeMouseLeave={() => isRadial && setHoveredId(null)}
+          onNodeClick={(_, n) => {
+            if (!isRadial) return;
+            setPinnedId((prev) =>
+              prev === n.id ? (setOpenId(n.id), prev) : (setOpenId(null), n.id),
+            );
+          }}
+          onPaneClick={() => {
+            setPinnedId(null);
+            setOpenId(null);
+            setHoveredId(null);
+          }}
+        >
+          <FitOnChange dep={`${view}:${nodes.length}`} />
+          <Background variant={BackgroundVariant.Cross} gap={36} size={4} color="#18202c" />
+          <Controls
+            showInteractive={false}
+            className="!overflow-hidden !rounded-md !border !border-[var(--line)] !shadow-xl [&_button]:!border-[var(--line)] [&_button]:!bg-[var(--panel-2)] [&_button]:!fill-[var(--ink-2)] [&_button:hover]:!bg-[var(--line)]"
+          />
 
-        <Panel position="top-right" className="!m-2 flex items-center gap-2">
-          {suggestRadial && (
+          <Panel position="top-right" className="!m-2 flex items-center gap-2">
+            {suggestRadial && (
+              <button
+                onClick={() => {
+                  setView("radial");
+                  setSuggested(true);
+                }}
+                className="rounded-md border border-[var(--accent)]/50 bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--accent)] shadow-lg hover:bg-[var(--line)]"
+              >
+                ◎ big graph — try radial
+              </button>
+            )}
             <button
               onClick={() => {
-                setView("radial");
+                setView((v) => (v === "radial" ? "cards" : "radial"));
                 setSuggested(true);
-              }}
-              className="rounded-md border border-[var(--accent)]/50 bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--accent)] shadow-lg hover:bg-[var(--line)]"
-            >
-              ◎ big graph — try radial
-            </button>
-          )}
-          <button
-            onClick={() => {
-              setView((v) => (v === "radial" ? "cards" : "radial"));
-              setSuggested(true);
-              setPinnedId(null);
-              setOpenId(null);
-            }}
-            className="rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--ink-2)] shadow-lg hover:bg-[var(--line)]"
-          >
-            {isRadial ? "▦ Cards" : "◎ Radial"}
-          </button>
-        </Panel>
-
-        {peekNode && !openNode && (
-          <Panel position="bottom-center" className="!mb-3">
-            <NodeDetail
-              node={peekNode}
-              full={false}
-              onOpen={() => setOpenId(peekNode.id)}
-              onClose={() => {
                 setPinnedId(null);
-                setHoveredId(null);
+                setOpenId(null);
               }}
+              className="rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--ink-2)] shadow-lg hover:bg-[var(--line)]"
+            >
+              {isRadial ? "▦ Cards" : "◎ Radial"}
+            </button>
+          </Panel>
+
+          {peekNode && !openNode && (
+            <Panel position="bottom-center" className="!mb-3">
+              <NodeDetail
+                node={peekNode}
+                full={false}
+                onOpen={() => setOpenId(peekNode.id)}
+                onClose={() => {
+                  setPinnedId(null);
+                  setHoveredId(null);
+                }}
+              />
+            </Panel>
+          )}
+
+          {openNode && (
+            <Panel position="top-center" className="!mt-3">
+              <NodeDetail node={openNode} full onOpen={() => {}} onClose={() => setOpenId(null)} />
+            </Panel>
+          )}
+
+          {mounted && showMinimap && nodes.length <= MINIMAP_MAX_NODES && (
+            <MiniMap
+              pannable
+              zoomable
+              nodeColor={(n: Node) => MINIMAP_COLOR[n.type ?? "source"] ?? "#5b6678"}
+              nodeStrokeWidth={0}
+              maskColor="rgba(8,10,15,0.78)"
+              className="!rounded-md !border !border-[var(--line)] !bg-[var(--bg-2)]"
+              style={{ width: 168, height: 112 }}
             />
-          </Panel>
-        )}
-
-        {openNode && (
-          <Panel position="top-center" className="!mt-3">
-            <NodeDetail node={openNode} full onOpen={() => {}} onClose={() => setOpenId(null)} />
-          </Panel>
-        )}
-
-        {mounted && showMinimap && nodes.length <= MINIMAP_MAX_NODES && (
-          <MiniMap
-            pannable
-            zoomable
-            nodeColor={(n: Node) => MINIMAP_COLOR[n.type ?? "source"] ?? "#5b6678"}
-            nodeStrokeWidth={0}
-            maskColor="rgba(8,10,15,0.78)"
-            className="!rounded-md !border !border-[var(--line)] !bg-[var(--bg-2)]"
-            style={{ width: 168, height: 112 }}
-          />
-        )}
-      </ReactFlow>
-    </InternalsContext.Provider>
+          )}
+        </ReactFlow>
+      </InternalsContext.Provider>
+    </WithholdVerdictContext.Provider>
   );
 }
