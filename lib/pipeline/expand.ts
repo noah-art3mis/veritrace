@@ -30,6 +30,7 @@ Writing both directions is NOT deciding the claim is true or false — it casts 
 export interface ExpandedQuery {
   seed: string; // question text + both directional hypotheticals — what actually steers retrieval
   hypothetical: string; // the directional passages, labelled, for the surfaced trace ("" if none)
+  anchors: string[]; // the directional passages as standalone queries — one per hypothetical, for RRF (#56)
 }
 
 const TRACE_LABELS = ["would confirm", "would refute"];
@@ -57,5 +58,7 @@ export async function expandQuery(
 
   const seed = passages.length ? `${question.text}\n${passages.join("\n")}` : question.text;
   const hypothetical = passages.map((p, i) => `${TRACE_LABELS[i] ?? "also"}: ${p}`).join("\n");
-  return { seed, hypothetical };
+  // Each directional passage is also a standalone retrieval query (it carries the entities/date),
+  // so resolveQuestion can issue one Exa search per hypothetical and RRF-fuse the rankings (#56).
+  return { seed, hypothetical, anchors: passages };
 }
