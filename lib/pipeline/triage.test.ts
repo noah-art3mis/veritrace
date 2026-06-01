@@ -23,7 +23,12 @@ describe("triageUtterances", () => {
   it("assigns sequential ids, null verdicts, and pairs decontextualized text with the source fragment", async () => {
     askJSON.mockResolvedValue([
       { text: "Springfield is a city.", checkable: true, checkworthy: true, relevant: false },
-      { text: "Immigrants in Springfield are eating residents' pets.", checkable: true, checkworthy: true, relevant: true },
+      {
+        text: "Immigrants in Springfield are eating residents' pets.",
+        checkable: true,
+        checkworthy: true,
+        relevant: true,
+      },
     ]);
     const claims = await triageUtterances(
       "src",
@@ -33,7 +38,11 @@ describe("triageUtterances", () => {
     );
     expect(claims.map((c) => c.id)).toEqual(["c1", "c2"]);
     expect(claims.every((c) => c.verdict === null)).toBe(true);
-    expect(claims[0]).toMatchObject({ text: "Springfield is a city.", original: "In Springfield", relevant: false });
+    expect(claims[0]).toMatchObject({
+      text: "Springfield is a city.",
+      original: "In Springfield",
+      relevant: false,
+    });
     expect(claims[1].original).toBe("eating the pets");
   });
 
@@ -57,7 +66,12 @@ describe("triageUtterances", () => {
 
   it("caps searchable claims at maxClaims, demoting the overflow to not-relevant", async () => {
     askJSON.mockResolvedValue(
-      Array.from({ length: 4 }, (_, i) => ({ text: `c${i}`, checkable: true, checkworthy: true, relevant: true })),
+      Array.from({ length: 4 }, (_, i) => ({
+        text: `c${i}`,
+        checkable: true,
+        checkworthy: true,
+        relevant: true,
+      })),
     );
     const claims = await triageUtterances("src", [u("a"), u("b"), u("c"), u("d")], ask, 2);
     expect(claims.filter(isSearchable)).toHaveLength(2);
@@ -81,7 +95,9 @@ describe("triageUtterances", () => {
   });
 
   it("flags decontextualizer-injected specifics absent from the source", async () => {
-    askJSON.mockResolvedValue([{ text: "The Blackpink album was released in 2018.", checkable: true }]);
+    askJSON.mockResolvedValue([
+      { text: "The Blackpink album was released in 2018.", checkable: true },
+    ]);
     const [c] = await triageUtterances("The album was released in 2018.", [u("The album")], ask, 5);
     expect(c.injected).toContain("Blackpink");
   });

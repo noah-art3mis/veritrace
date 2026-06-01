@@ -42,9 +42,21 @@ const PIPELINE: { n: string; title: string; body: string; color: string }[] = [
 
 const VERDICTS: { label: string; color: string; body: string }[] = [
   { label: "Supported", color: "#34d399", body: "Primary evidence corroborates the claim." },
-  { label: "Refuted", color: "#fb7185", body: "Primary evidence contradicts it — including an official denial." },
-  { label: "Conflicting", color: "#f5b94a", body: "Sources both support and refute, or evidence is cherry-picked." },
-  { label: "Not Enough Evidence", color: "#8a94a6", body: "No usable primary evidence — uncertainty stated, not guessed." },
+  {
+    label: "Refuted",
+    color: "#fb7185",
+    body: "Primary evidence contradicts it — including an official denial.",
+  },
+  {
+    label: "Conflicting",
+    color: "#f5b94a",
+    body: "Sources both support and refute, or evidence is cherry-picked.",
+  },
+  {
+    label: "Not Enough Evidence",
+    color: "#8a94a6",
+    body: "No usable primary evidence — uncertainty stated, not guessed.",
+  },
 ];
 
 interface Ref {
@@ -123,7 +135,8 @@ const REFERENCES: Ref[] = [
   {
     key: "atanasova",
     title: "Generating fact-checking explanations — Atanasova et al., 2020",
-    detail: "Joint veracity prediction and explanation generation; foundational explainable-FC work (CopeNLU).",
+    detail:
+      "Joint veracity prediction and explanation generation; foundational explainable-FC work (CopeNLU).",
     href: "https://aclanthology.org/2020.acl-main.656/",
     hrefLabel: "ACL 2020",
   },
@@ -149,10 +162,25 @@ const INSPIRATIONS: { group: string; blurb: string; items: Inspiration[] }[] = [
     blurb:
       "Tools that score whether prose was machine-generated. VERITRACE borrows their adversarial honesty — surface the signal, let the human judge — but checks claims against evidence rather than scoring style.",
     items: [
-      { name: "GPTZero", href: "https://gptzero.me/", body: "Sentence-level AI-text detection for educators and publishers." },
-      { name: "Pangram", href: "https://www.pangram.com/", body: "High-precision AI-content detection with low false-positive rates." },
-      { name: "Originality.ai", href: "https://originality.ai/", body: "AI-detection plus plagiarism and fact-checking for content teams." },
-      { name: "SlopSpotter", body: "Community tooling for flagging low-quality, AI-generated “slop” on the web." },
+      {
+        name: "GPTZero",
+        href: "https://gptzero.me/",
+        body: "Sentence-level AI-text detection for educators and publishers.",
+      },
+      {
+        name: "Pangram",
+        href: "https://www.pangram.com/",
+        body: "High-precision AI-content detection with low false-positive rates.",
+      },
+      {
+        name: "Originality.ai",
+        href: "https://originality.ai/",
+        body: "AI-detection plus plagiarism and fact-checking for content teams.",
+      },
+      {
+        name: "SlopSpotter",
+        body: "Community tooling for flagging low-quality, AI-generated “slop” on the web.",
+      },
     ],
   },
   {
@@ -170,8 +198,16 @@ const INSPIRATIONS: { group: string; blurb: string; items: Inspiration[] }[] = [
         href: "https://dbrech.irit.fr/pls/apex/f?p=9999:1",
         body: "Scans the literature for tortured phrases and other fabrication tells.",
       },
-      { name: "Turnitin", href: "https://www.turnitin.co.uk/", body: "Originality and AI-writing checks across student and academic work." },
-      { name: "COSIG", href: "https://cosig.net/", body: "Coalition for scientific-integrity tooling and shared detection resources." },
+      {
+        name: "Turnitin",
+        href: "https://www.turnitin.co.uk/",
+        body: "Originality and AI-writing checks across student and academic work.",
+      },
+      {
+        name: "COSIG",
+        href: "https://cosig.net/",
+        body: "Coalition for scientific-integrity tooling and shared detection resources.",
+      },
     ],
   },
 ];
@@ -249,7 +285,9 @@ export default function MethodologyPage() {
                 </span>
                 <div>
                   <h3 className="text-[14px] font-semibold text-[var(--ink-1)]">{step.title}</h3>
-                  <p className="mt-1.5 text-[13px] leading-[1.6] text-[var(--ink-2)]">{step.body}</p>
+                  <p className="mt-1.5 text-[13px] leading-[1.6] text-[var(--ink-2)]">
+                    {step.body}
+                  </p>
                 </div>
               </li>
             ))}
@@ -268,9 +306,12 @@ export default function MethodologyPage() {
             is never the answer we copy. The cheat we avoid is letting someone else&apos;s verdict
             stand in for our own. Fact-check outlets are currently allowed back into retrieval — so
             the agent can follow them through to the originating reports — but the verdict is always
-            re-derived from the primary evidence the pipeline classifies for stance, reliability, and
-            source type. <span className="text-[var(--ink-3)]">(A stricter mode that mechanically
-            excludes those outlets from search is available and can be re-enabled.)</span>
+            re-derived from the primary evidence the pipeline classifies for stance, reliability,
+            and source type.{" "}
+            <span className="text-[var(--ink-3)]">
+              (A stricter mode that mechanically excludes those outlets from search is available and
+              can be re-enabled.)
+            </span>
           </p>
         </section>
 
@@ -308,8 +349,7 @@ export default function MethodologyPage() {
             A text-in, web-search build can honestly check{" "}
             <span className="text-[var(--ink-1)]">event/existence</span> and{" "}
             <span className="text-[var(--ink-1)]">official-denial</span> claims from primary
-            sources. It{" "}
-            <span className="text-[var(--ink-1)]">cannot</span> verify media-provenance,
+            sources. It <span className="text-[var(--ink-1)]">cannot</span> verify media-provenance,
             synthetic-media, or origin-trace claims — there are no pixels, no reverse-image or
             detector tooling — so those correctly resolve to{" "}
             <span style={{ color: "var(--nei)" }}>Not Enough Evidence</span>. That refusal to guess

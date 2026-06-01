@@ -38,10 +38,12 @@ describe("classifyEvidence", () => {
       { stance: "supports", reliability: "high", sourceType: "primary", stanceConfidence: 0.9 },
       { stance: "refutes", reliability: "medium", sourceType: "secondary", stanceConfidence: 0.7 },
     ]);
-    const out = await classifyEvidence(claim, question, [
-      raw({ domain: "a.com" }),
-      raw({ domain: "b.com" }),
-    ], ask);
+    const out = await classifyEvidence(
+      claim,
+      question,
+      [raw({ domain: "a.com" }), raw({ domain: "b.com" })],
+      ask,
+    );
     expect(out[0]).toMatchObject({ domain: "a.com", stance: "supports", reliability: "high" });
     expect(out[1]).toMatchObject({ domain: "b.com", stance: "refutes", reliability: "medium" });
   });
@@ -59,9 +61,12 @@ describe("classifyEvidence", () => {
     askJSON.mockResolvedValue([
       { stance: "supports", reliability: "high", sourceType: "primary", stanceConfidence: 0.9 },
     ]);
-    const [e] = await classifyEvidence(claim, question, [
-      raw({ title: "Headline", url: "https://x.com/a", publishedDate: "2026-01-01" }),
-    ], ask);
+    const [e] = await classifyEvidence(
+      claim,
+      question,
+      [raw({ title: "Headline", url: "https://x.com/a", publishedDate: "2026-01-01" })],
+      ask,
+    );
     expect(e).toMatchObject({
       questionId: "c1-q1",
       title: "Headline",
@@ -76,9 +81,12 @@ describe("classifyEvidence", () => {
     askJSON.mockResolvedValue([
       { stance: "supports", reliability: "low", sourceType: "secondary", stanceConfidence: 0.8 },
     ]);
-    const [e] = await classifyEvidence(claim, question, [
-      raw({ domain: "en.wikipedia.org", url: "https://en.wikipedia.org/wiki/X" }),
-    ], ask);
+    const [e] = await classifyEvidence(
+      claim,
+      question,
+      [raw({ domain: "en.wikipedia.org", url: "https://en.wikipedia.org/wiki/X" })],
+      ask,
+    );
     expect(e.reliability).toBe("high");
     // Only reliability is overridden — the model's stance/sourceType are kept.
     expect(e.stance).toBe("supports");
@@ -104,7 +112,12 @@ describe("classifyEvidence", () => {
     // actually SEES both dates. Regression guard for the "alive on the 18th refutes death on
     // the 22nd" bug: the source date and the claim's event date must reach the model.
     askJSON.mockResolvedValue([
-      { stance: "contextualizes", reliability: "high", sourceType: "primary", stanceConfidence: 0.4 },
+      {
+        stance: "contextualizes",
+        reliability: "high",
+        sourceType: "primary",
+        stanceConfidence: 0.4,
+      },
     ]);
     const datedClaim: ClaimItem = { ...claim, date: "2026-02-22" };
     await classifyEvidence(

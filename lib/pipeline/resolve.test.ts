@@ -48,7 +48,10 @@ describe("rationaleFor", () => {
 
   it("explains nei with weak evidence by naming the sources that missed the bar", () => {
     // Low-reliability sources were found but none could move the verdict.
-    const ev = [evidence("supports", "blog.example", "low"), evidence("contextualizes", "aggregator.test", "low")];
+    const ev = [
+      evidence("supports", "blog.example", "low"),
+      evidence("contextualizes", "aggregator.test", "low"),
+    ];
     const text = rationaleFor(claim(), "nei", ev);
     expect(text).toMatch(/found 2 sources/i);
     expect(text).toContain("blog.example");
@@ -79,7 +82,9 @@ describe("rationaleFor", () => {
 
   it("deduplicates repeated domains in the rationale", () => {
     const ev = [evidence("supports", "bbc.com"), evidence("supports", "bbc.com")];
-    expect(rationaleFor(claim(), "supported", ev)).toBe("Supported by bbc.com — incl. a primary source.");
+    expect(rationaleFor(claim(), "supported", ev)).toBe(
+      "Supported by bbc.com — incl. a primary source.",
+    );
   });
 
   it("summarizes three-plus domains as 'a, b and others'", () => {
@@ -104,7 +109,9 @@ describe("rationaleFor", () => {
   it("falls back to a generic phrase when the deciding set has no domains", () => {
     // supported verdict but no supporting evidence present → no domains, no primary to flag.
     const text = rationaleFor(claim(), "supported", [evidence("refutes", "x.com")]);
-    expect(text).toBe("Supported by the retrieved sources — re-reporting only, no originating source located.");
+    expect(text).toBe(
+      "Supported by the retrieved sources — re-reporting only, no originating source located.",
+    );
   });
 });
 
@@ -130,7 +137,9 @@ describe("rankAndCapEvidence", () => {
   it("preserves the verdict across the cap by keeping the top deciding support and refute", () => {
     // 8 deciding supports would crowd out the lone refute on a naive top-N slice, flipping
     // a Conflicting claim to Supported. The cap must retain the deciding refute.
-    const supports = Array.from({ length: 8 }, (_, i) => evidence("supports", `s${i}.com`, "high", "primary"));
+    const supports = Array.from({ length: 8 }, (_, i) =>
+      evidence("supports", `s${i}.com`, "high", "primary"),
+    );
     const refute = evidence("refutes", "denial.gov", "high", "primary");
     const full = [...supports, refute];
     const capped = rankAndCapEvidence(full, 4);
@@ -160,7 +169,12 @@ describe("dateWindow", () => {
 });
 
 describe("resolveQuestion (agentic gather loop)", () => {
-  const question: QuestionItem = { id: "c1-q1", claimId: "c1", text: "did X happen?", status: "searching" };
+  const question: QuestionItem = {
+    id: "c1-q1",
+    claimId: "c1",
+    text: "did X happen?",
+    status: "searching",
+  };
 
   function rawSource(domain: string): RawEvidence {
     return { title: "t", url: `https://${domain}/x`, domain, passage: "p", text: "p" };
@@ -214,7 +228,9 @@ describe("resolveQuestion (agentic gather loop)", () => {
 
   it("accumulates and dedupes evidence by url across the model's searches", async () => {
     const search = vi.fn(async (q: string) =>
-      q === "q1" ? [rawSource("a.com"), rawSource("b.com")] : [rawSource("b.com"), rawSource("c.com")],
+      q === "q1"
+        ? [rawSource("a.com"), rawSource("b.com")]
+        : [rawSource("b.com"), rawSource("c.com")],
     );
     // classify zips one stance per source positionally; 3 unique sources → 3 classifications.
     const askJSON = vi.fn().mockResolvedValue(
@@ -226,7 +242,14 @@ describe("resolveQuestion (agentic gather loop)", () => {
       })),
     );
     const d = deps(
-      { search, ask: { askText: vi.fn().mockResolvedValue("h"), askJSON, askWithTools: fakeModel(["q1", "q2"]) } },
+      {
+        search,
+        ask: {
+          askText: vi.fn().mockResolvedValue("h"),
+          askJSON,
+          askWithTools: fakeModel(["q1", "q2"]),
+        },
+      },
       ["q1", "q2"],
     );
 
@@ -238,7 +261,13 @@ describe("resolveQuestion (agentic gather loop)", () => {
 
   it("returns a trace: HyDE hypothetical, the executed queries, and the gather summary", async () => {
     const d = deps(
-      { ask: { askText: vi.fn().mockResolvedValue("A neutral hypothetical report."), askJSON: vi.fn().mockResolvedValue([]), askWithTools: fakeModel(["q1", "q2"]) } },
+      {
+        ask: {
+          askText: vi.fn().mockResolvedValue("A neutral hypothetical report."),
+          askJSON: vi.fn().mockResolvedValue([]),
+          askWithTools: fakeModel(["q1", "q2"]),
+        },
+      },
       ["q1", "q2"],
     );
     const out = await resolveQuestion(claim(), question, d);

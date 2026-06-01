@@ -11,23 +11,21 @@ import { segmentUtterances } from "./segment";
 const hasKey = !!process.env.ANTHROPIC_API_KEY;
 
 describe.skipIf(!hasKey)("segmentUtterances (live eval)", () => {
-  it(
-    "splits a 'Lula ou Bolsonaro' disjunction into one candidate claim per alternative",
-    async () => {
-      const ask = createAnthropic(DEFAULT_CONFIG);
-      const out = await segmentUtterances(
-        "shakira declarou apoio a lula ou a bolsonaro durante show no rio",
-        ask,
-      );
+  it("splits a 'Lula ou Bolsonaro' disjunction into one candidate claim per alternative", async () => {
+    const ask = createAnthropic(DEFAULT_CONFIG);
+    const out = await segmentUtterances(
+      "shakira declarou apoio a lula ou a bolsonaro durante show no rio",
+      ask,
+    );
 
-      // Each endorsement must be its OWN utterance — not a single "Lula or Bolsonaro" line —
-      // so the checker can verify them independently (at most one can be true).
-      const lulaOnly = out.some((u) => /lula/i.test(u.text) && !/bolsonaro/i.test(u.text));
-      const bolsonaroOnly = out.some((u) => /bolsonaro/i.test(u.text) && !/lula/i.test(u.text));
+    // Each endorsement must be its OWN utterance — not a single "Lula or Bolsonaro" line —
+    // so the checker can verify them independently (at most one can be true).
+    const lulaOnly = out.some((u) => /lula/i.test(u.text) && !/bolsonaro/i.test(u.text));
+    const bolsonaroOnly = out.some((u) => /bolsonaro/i.test(u.text) && !/lula/i.test(u.text));
 
-      expect(lulaOnly, `expected a Lula-only utterance in: ${JSON.stringify(out)}`).toBe(true);
-      expect(bolsonaroOnly, `expected a Bolsonaro-only utterance in: ${JSON.stringify(out)}`).toBe(true);
-    },
-    30_000,
-  );
+    expect(lulaOnly, `expected a Lula-only utterance in: ${JSON.stringify(out)}`).toBe(true);
+    expect(bolsonaroOnly, `expected a Bolsonaro-only utterance in: ${JSON.stringify(out)}`).toBe(
+      true,
+    );
+  }, 30_000);
 });

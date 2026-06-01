@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { claimVerdict, sourceVerdict, tallyClaims } from "./verdict";
-import type { ClaimItem, EvidenceItem, Stance, Verdict } from "../graph-types";
+import type { ClaimItem, EvidenceItem, Stance } from "../graph-types";
 
 // Verdict aggregation is the one piece of "judgement" VERITRACE states rather than
 // learns (PLAN.md). These tests pin the inspectable rule so it can't silently drift.
@@ -139,6 +139,13 @@ describe("tallyClaims", () => {
   });
 
   it("returns an all-zero tally for an empty claim set", () => {
-    expect(tallyClaims([])).toEqual({ supported: 0, refuted: 0, conflicting: 0, nei: 0, total: 0, dropped: 0 });
+    expect(tallyClaims([])).toEqual({
+      supported: 0,
+      refuted: 0,
+      conflicting: 0,
+      nei: 0,
+      total: 0,
+      dropped: 0,
+    });
   });
 });

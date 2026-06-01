@@ -1,11 +1,6 @@
 import { createContext, memo, useContext } from "react";
 import { Handle, Position, type NodeProps, type NodeTypes } from "@xyflow/react";
-import type {
-  SourceNode,
-  ClaimNode,
-  QuestionNode,
-  EvidenceNode,
-} from "@/lib/graph-to-flow";
+import type { SourceNode, ClaimNode, QuestionNode, EvidenceNode } from "@/lib/graph-to-flow";
 import { VERDICT_META, STANCE_META, RELIABILITY_META } from "@/lib/visuals";
 import type { Verdict, Reliability, ClaimTally, QuestionTrace } from "@/lib/graph-types";
 import { isRelevanceDropped } from "@/lib/pipeline/claim-status";
@@ -63,10 +58,7 @@ function VerdictBadge({ verdict }: { verdict: Verdict | null }) {
       style={{ borderColor: `${m.color}55`, background: m.soft, boxShadow: `0 0 14px ${m.glow}` }}
     >
       <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.color }} />
-      <span
-        className="font-display text-[12.5px] italic leading-none"
-        style={{ color: m.color }}
-      >
+      <span className="font-display text-[12.5px] italic leading-none" style={{ color: m.color }}>
         {m.label}
       </span>
     </span>
@@ -103,10 +95,7 @@ function ReliabilityMeter({ reliability }: { reliability: Reliability }) {
           />
         ))}
       </span>
-      <span
-        className="font-mono text-[9px] uppercase tracking-wider"
-        style={{ color: r.color }}
-      >
+      <span className="font-mono text-[9px] uppercase tracking-wider" style={{ color: r.color }}>
         {r.label}
       </span>
     </span>
@@ -131,7 +120,11 @@ function SupportRatio({ tally }: { tally: ClaimTally }) {
       {parts
         .filter((p) => p.n > 0)
         .map((p) => (
-          <span key={p.verdict} className="text-[var(--ink-3)]" style={{ color: VERDICT_META[p.verdict].color }}>
+          <span
+            key={p.verdict}
+            className="text-[var(--ink-3)]"
+            style={{ color: VERDICT_META[p.verdict].color }}
+          >
             · {p.n} {p.verdict === "nei" ? "NEI" : p.verdict}
           </span>
         ))}
@@ -161,7 +154,9 @@ function QuestionTraceBlock({ trace }: { trace: QuestionTrace }) {
           <TraceLabel>queries</TraceLabel>
           <ul className="mt-0.5">
             {trace.searchQueries.map((q, i) => (
-              <li key={i} className="text-[var(--ink-2)]">› {q}</li>
+              <li key={i} className="text-[var(--ink-2)]">
+                › {q}
+              </li>
             ))}
           </ul>
         </div>
@@ -189,9 +184,7 @@ function SourceNodeCard({ data }: NodeProps<SourceNode>) {
         <Kicker>Source · Exhibit</Kicker>
         <VerdictBadge verdict={item.verdict} />
       </div>
-      <p className="font-display px-1 text-[15px] leading-[1.5] text-[var(--ink-1)]">
-        {item.text}
-      </p>
+      <p className="font-display px-1 text-[15px] leading-[1.5] text-[var(--ink-1)]">{item.text}</p>
       {item.tally && <SupportRatio tally={item.tally} />}
       {OUT}
     </div>

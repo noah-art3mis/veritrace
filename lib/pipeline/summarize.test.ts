@@ -16,7 +16,13 @@ describe("graphDigest", () => {
       ...MOCK_GRAPH,
       claims: [
         ...MOCK_GRAPH.claims,
-        { id: "c9", text: "Springfield is a city.", verdict: null, checkable: true, relevant: false },
+        {
+          id: "c9",
+          text: "Springfield is a city.",
+          verdict: null,
+          checkable: true,
+          relevant: false,
+        },
       ],
     };
     const d = graphDigest(g);
@@ -34,9 +40,7 @@ describe("graphDigest", () => {
 
   it("lists distinct evidence domains", () => {
     const d = graphDigest(MOCK_GRAPH);
-    expect(new Set(d.evidence.domains)).toEqual(
-      new Set(["cnnespanol.cnn.com", "infobae.com"]),
-    );
+    expect(new Set(d.evidence.domains)).toEqual(new Set(["cnnespanol.cnn.com", "infobae.com"]));
   });
 });
 

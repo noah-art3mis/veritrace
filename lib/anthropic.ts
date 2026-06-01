@@ -105,9 +105,7 @@ export function createAnthropic(config: RunConfig): AnthropicCaller {
 
     while (steps < opts.maxSteps) {
       steps++;
-      const msg = await client.messages.create(
-        buildParams(messages, opts, { tools: opts.tools }),
-      );
+      const msg = await client.messages.create(buildParams(messages, opts, { tools: opts.tools }));
       last = msg;
       // Push the assistant turn verbatim — preserves thinking + tool_use blocks, which the
       // API requires echoed back on the next turn when thinking is enabled.

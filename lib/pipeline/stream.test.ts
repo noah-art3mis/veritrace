@@ -22,7 +22,12 @@ import { streamPipeline, collectGraph } from "./stream";
 import type { PipelineDeps } from "./deps";
 
 // The leaf stages are mocked, so deps is inert here — a placeholder satisfies the type.
-const deps = { ask: { askJSON: vi.fn(), askText: vi.fn(), askWithTools: vi.fn() }, search: vi.fn(), maxClaims: 5, maxQuestions: 2 } as PipelineDeps;
+const deps = {
+  ask: { askJSON: vi.fn(), askText: vi.fn(), askWithTools: vi.fn() },
+  search: vi.fn(),
+  maxClaims: 5,
+  maxQuestions: 2,
+} as PipelineDeps;
 
 let evCounter = 0;
 function evidence(questionId: string, stance: Stance): EvidenceItem {
@@ -96,7 +101,10 @@ describe("streamPipeline event protocol", () => {
   it("moves each question through searching then answered", async () => {
     const events = await drain("post");
     const statuses = events
-      .filter((e): e is Extract<PipelineEvent, { type: "question_status" }> => e.type === "question_status")
+      .filter(
+        (e): e is Extract<PipelineEvent, { type: "question_status" }> =>
+          e.type === "question_status",
+      )
       .map((e) => e.status);
     expect(statuses).toEqual(["searching", "answered"]);
   });
@@ -106,7 +114,10 @@ describe("streamPipeline event protocol", () => {
     const trace = events.find(
       (e): e is Extract<PipelineEvent, { type: "question_trace" }> => e.type === "question_trace",
     );
-    expect(trace).toMatchObject({ id: "c1-q1", trace: { searchQueries: ["q"], gatherSummary: "s" } });
+    expect(trace).toMatchObject({
+      id: "c1-q1",
+      trace: { searchQueries: ["q"], gatherSummary: "s" },
+    });
   });
 });
 
@@ -124,8 +135,7 @@ describe("streamPipeline verdict resolution", () => {
     ).length;
     const verdictIdx = events.findIndex((e) => e.type === "claim_verdict");
     const secondAnsweredIdx = events.reduce(
-      (acc, e, i) =>
-        e.type === "question_status" && e.status === "answered" ? i : acc,
+      (acc, e, i) => (e.type === "question_status" && e.status === "answered" ? i : acc),
       -1,
     );
     expect(answeredCount).toBe(2);

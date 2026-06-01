@@ -33,10 +33,7 @@ function finishedGraph(): FactGraph {
     { id: "c1-q1", claimId: "c1", text: "q1?", status: "answered" },
     { id: "c1-q2", claimId: "c1", text: "q2?", status: "answered" },
   ];
-  const evidenceItems = [
-    evidence("c1-q1-e1", "c1-q1"),
-    evidence("c1-q2-e1", "c1-q2"),
-  ];
+  const evidenceItems = [evidence("c1-q1-e1", "c1-q1"), evidence("c1-q2-e1", "c1-q2")];
   return {
     source: {
       id: "src",
@@ -101,21 +98,15 @@ describe("graphToEvents ordering", () => {
 
   it("resolves a question-less (unverifiable) claim verdict immediately, without evidence", () => {
     // c2 is unckeckable → no questions → its verdict event must still appear.
-    const c2Verdict = events.find(
-      (e) => e.type === "claim_verdict" && e.id === "c2",
-    );
+    const c2Verdict = events.find((e) => e.type === "claim_verdict" && e.id === "c2");
     expect(c2Verdict).toMatchObject({ verdict: "nei" });
   });
 
   it("only emits a claim's verdict after its last question is answered", () => {
-    const c1VerdictIdx = events.findIndex(
-      (e) => e.type === "claim_verdict" && e.id === "c1",
-    );
+    const c1VerdictIdx = events.findIndex((e) => e.type === "claim_verdict" && e.id === "c1");
     const lastQAnsweredIdx = events.reduce(
       (acc, e, i) =>
-        e.type === "question_status" && e.status === "answered" && e.id.startsWith("c1-")
-          ? i
-          : acc,
+        e.type === "question_status" && e.status === "answered" && e.id.startsWith("c1-") ? i : acc,
       -1,
     );
     expect(c1VerdictIdx).toBeGreaterThan(lastQAnsweredIdx);

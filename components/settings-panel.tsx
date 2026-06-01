@@ -63,8 +63,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showMinimap: true,
 };
 
-const labelCls =
-  "font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)]";
+const labelCls = "font-mono text-[9.5px] uppercase tracking-[0.22em] text-[var(--ink-3)]";
 const fieldCls =
   "w-full rounded-md border border-[var(--line-2)] bg-[var(--bg)] px-2.5 py-1.5 font-mono text-[11.5px] text-[var(--ink-1)] focus:border-[var(--accent)] focus:outline-none";
 

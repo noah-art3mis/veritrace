@@ -29,7 +29,12 @@ const SIZES: Record<AppNode["type"], { w: number; h: number }> = {
 /** Build the (unpositioned) node list for a graph — data only; layout fills in positions. */
 export function buildNodes(graph: FactGraph): AppNode[] {
   const nodes: AppNode[] = [];
-  nodes.push({ id: graph.source.id, type: "source", position: { x: 0, y: 0 }, data: { item: graph.source } });
+  nodes.push({
+    id: graph.source.id,
+    type: "source",
+    position: { x: 0, y: 0 },
+    data: { item: graph.source },
+  });
   for (const claim of graph.claims) {
     nodes.push({ id: claim.id, type: "claim", position: { x: 0, y: 0 }, data: { item: claim } });
   }
@@ -77,7 +82,11 @@ export function buildFlowEdges(graph: FactGraph): Edge[] {
     row.forEach((ev, i) => {
       const fromQuestion = i === 0;
       edges.push(
-        stanceEdge(fromQuestion ? ev.questionId : row[i - 1].id, ev, fromQuestion ? undefined : "flow-out"),
+        stanceEdge(
+          fromQuestion ? ev.questionId : row[i - 1].id,
+          ev,
+          fromQuestion ? undefined : "flow-out",
+        ),
       );
     });
   }
@@ -129,7 +138,13 @@ function stanceEdge(source: string, ev: EvidenceItem, sourceHandle?: string): Ed
     label: STANCE_META[ev.stance].label,
     animated: true,
     style: { stroke, strokeWidth: 2 },
-    labelStyle: { fill: stroke, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" },
+    labelStyle: {
+      fill: stroke,
+      fontSize: 10,
+      fontWeight: 600,
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+    },
     labelBgStyle: { fill: "#0b0e15", fillOpacity: 0.9 },
     labelBgPadding: [5, 3],
     labelBgBorderRadius: 3,
@@ -152,7 +167,9 @@ export function conflictEdges(graph: FactGraph): Edge[] {
   }
 
   const strongest = (items: EvidenceItem[]) =>
-    items.reduce((best, e) => ((e.stanceConfidence ?? 0) > (best.stanceConfidence ?? 0) ? e : best));
+    items.reduce((best, e) =>
+      (e.stanceConfidence ?? 0) > (best.stanceConfidence ?? 0) ? e : best,
+    );
   const color = VERDICT_META.conflicting.color;
   const edges: Edge[] = [];
 
@@ -172,7 +189,13 @@ export function conflictEdges(graph: FactGraph): Edge[] {
       animated: true,
       label: "conflicts",
       style: { stroke: color, strokeWidth: 1.5, strokeDasharray: "2 4" },
-      labelStyle: { fill: color, fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" },
+      labelStyle: {
+        fill: color,
+        fontSize: 9,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+      },
       labelBgStyle: { fill: "#0b0e15", fillOpacity: 0.9 },
       labelBgPadding: [4, 2],
       labelBgBorderRadius: 3,
