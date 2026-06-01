@@ -90,7 +90,11 @@ export function SettingsPanel({
   const tempInert = settings.thinking || modelDeprecatesTemp;
 
   return (
-    <div className="grid gap-4 rounded-lg border border-[var(--line-2)] bg-[var(--bg)]/60 p-4 sm:grid-cols-2 lg:grid-cols-4">
+    // Cap the panel height and let it scroll within itself. On mobile every control stacks
+    // into one tall column that otherwise runs off the bottom of the screen with no way to
+    // reach the lower toggles + API keys (#5). On desktop the 4-col grid is short, so the cap
+    // never engages and no scrollbar appears.
+    <div className="grid max-h-[70vh] gap-4 overflow-y-auto overscroll-contain rounded-lg border border-[var(--line-2)] bg-[var(--bg)]/60 p-4 sm:grid-cols-2 lg:grid-cols-4">
       {/* Model */}
       <div className="flex flex-col gap-1.5">
         <label className={labelCls}>Model</label>
