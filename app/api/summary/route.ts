@@ -1,4 +1,4 @@
-import { createAnthropic } from "@/lib/anthropic";
+import { createReasoner } from "@/lib/reasoner";
 import { parseConfig } from "@/lib/run-config";
 import { summarizeGraph } from "@/lib/pipeline/summarize";
 import type { FactGraph } from "@/lib/graph-types";
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
   let ask;
   try {
-    ask = createAnthropic(parseConfig(body.config));
+    ask = createReasoner(parseConfig(body.config));
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "Invalid run configuration" },

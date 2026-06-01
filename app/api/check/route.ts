@@ -1,5 +1,5 @@
 import { streamPipeline } from "@/lib/pipeline/stream";
-import { createAnthropic } from "@/lib/anthropic";
+import { createReasoner } from "@/lib/reasoner";
 import { createExaSearch } from "@/lib/exa";
 import { createFactCheckLookup } from "@/lib/factcheck";
 import { parseConfig } from "@/lib/run-config";
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   try {
     const config = parseConfig(body.config);
     deps = {
-      ask: createAnthropic(config),
+      ask: createReasoner(config),
       search: createExaSearch({
         exaKey: config.exaKey,
         numResults: config.maxSources,
