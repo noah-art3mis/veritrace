@@ -8,6 +8,7 @@ import type {
   SourceType,
 } from "../graph-types";
 import type { RawEvidence } from "../exa";
+import { domainCredibility } from "../domain-credibility";
 
 const SYSTEM = `You are the evidence-classification stage of VERITRACE. Given a claim (with its event date), the question being resolved, and a set of retrieved sources (each with a publication date), classify EACH source relative to the CLAIM.
 
@@ -33,16 +34,12 @@ interface Classification {
   stanceConfidence: number;
 }
 
-// Privileged trusted sources whose reliability is NOT left to the model. A match is
-// forced to "high" so it can move a verdict (per the source-reliability-is-load-bearing
-// principle in verdict.ts). Wikipedia is tertiary — privileged for established facts; it
-// simply won't carry breaking events, which is fine.
-const PRIVILEGED_HIGH_DOMAINS = ["wikipedia.org"];
-
-function privilegedReliability(domain: string, modelReliability: Reliability): Reliability {
-  return PRIVILEGED_HIGH_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))
-    ? "high"
-    : modelReliability;
+// Reliability is load-bearing (only high/medium move a verdict — verdict.ts), so for domains
+// we recognise we don't leave it to a per-call LLM guess: the static credibility list is
+// authoritative and overrides the model's rating (up OR down). Unknown domains keep the model's
+// judgement. See lib/domain-credibility.ts.
+function staticReliability(domain: string, modelReliability: Reliability): Reliability {
+  return domainCredibility(domain) ?? modelReliability;
 }
 
 export async function classifyEvidence(
@@ -87,7 +84,7 @@ export async function classifyEvidence(
       publishedDate: r.publishedDate,
       passage: r.passage,
       stance: c.stance,
-      reliability: privilegedReliability(r.domain, c.reliability),
+      reliability: staticReliability(r.domain, c.reliability),
       sourceType: c.sourceType,
       stanceConfidence: c.stanceConfidence,
     };
