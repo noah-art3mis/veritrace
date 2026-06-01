@@ -124,23 +124,15 @@ function spoke(source: string, target: string): Edge {
 
 function stanceSpoke(source: string, evId: string, stance: keyof typeof STANCE_META): Edge {
   const stroke = STANCE_META[stance].color;
+  // The RadialLabelEdge custom edge renders the label from `data`, zoom-gated (#47), instead of
+  // React Flow's always-on edge label. Stance colour stays on the stroke so the spoke still reads.
   return {
     id: `r-${source}-${evId}`,
     source,
     target: evId,
-    type: "straight",
-    label: STANCE_META[stance].label,
+    type: "radialLabel",
     style: { stroke, strokeWidth: 1.5 },
-    labelStyle: {
-      fill: stroke,
-      fontSize: 9,
-      fontWeight: 600,
-      textTransform: "uppercase",
-      letterSpacing: "0.06em",
-    },
-    labelBgStyle: { fill: "#0b0e15", fillOpacity: 0.85 },
-    labelBgPadding: [4, 2],
-    labelBgBorderRadius: 3,
+    data: { label: STANCE_META[stance].label, color: stroke },
   };
 }
 
@@ -151,9 +143,19 @@ export function buildRadialEdges(graph: FactGraph): Edge[] {
   for (const q of graph.questions) edges.push(spoke(q.claimId, q.id));
   for (const ev of graph.evidence) edges.push(stanceSpoke(ev.questionId, ev.id, ev.stance));
   // Reuse the card view's conflict computation, but drop the card-specific handles (circles route
-  // edges centre-to-centre) so the chord cuts straight across the interior.
+  // edges centre-to-centre) so the chord cuts straight across the interior. Route it through the
+  // zoom-aware custom edge too, so the "conflicts" label fades with the spoke labels (#47).
   for (const ce of conflictEdges(graph)) {
-    edges.push({ ...ce, sourceHandle: undefined, targetHandle: undefined, type: "straight" });
+    edges.push({
+      ...ce,
+      sourceHandle: undefined,
+      targetHandle: undefined,
+      type: "radialLabel",
+      data: {
+        label: typeof ce.label === "string" ? ce.label : "conflicts",
+        color: (ce.style?.stroke as string) ?? undefined,
+      },
+    });
   }
   return edges;
 }

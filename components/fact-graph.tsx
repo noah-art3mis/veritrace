@@ -14,6 +14,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { nodeTypes, InternalsContext, WithholdVerdictContext } from "./graph-nodes";
 import { circleNodeTypes, NodeDetail } from "./graph-circles";
+import { radialEdgeTypes } from "./radial-edges";
 import { useGraphFlow } from "./use-graph-flow";
 import { useRadialFlow } from "./use-radial-flow";
 import { useIsMobile } from "./use-is-mobile";
@@ -97,6 +98,7 @@ export default function FactGraphCanvas({
           nodes={nodes}
           edges={edges}
           nodeTypes={isRadial ? circleNodeTypes : nodeTypes}
+          edgeTypes={isRadial ? radialEdgeTypes : undefined}
           fitView
           fitViewOptions={{ padding: 0.15 }}
           minZoom={0.2}
