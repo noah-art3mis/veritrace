@@ -12,7 +12,8 @@ export async function extractClaims(
   sourceText: string,
   ask: AnthropicCaller,
   maxClaims: number,
+  asOf?: string,
 ): Promise<ClaimItem[]> {
   const utterances = await segmentUtterances(sourceText, ask);
-  return triageUtterances(sourceText, utterances, ask, maxClaims);
+  return triageUtterances(sourceText, utterances, ask, maxClaims, asOf);
 }

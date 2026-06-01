@@ -29,7 +29,7 @@ export async function* streamPipeline(
   yield { type: "source", source: { id: "src", text: sourceText, verdict: null } };
 
   // 1. Decompose.
-  const claims = await extractClaims(sourceText, deps.ask, deps.maxClaims);
+  const claims = await extractClaims(sourceText, deps.ask, deps.maxClaims, deps.asOf);
   for (const claim of claims) yield { type: "claim", claim };
   const claimById = new Map(claims.map((c) => [c.id, c]));
 

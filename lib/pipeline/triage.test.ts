@@ -64,6 +64,23 @@ describe("triageUtterances", () => {
     expect(claims[1].date).toBeUndefined();
   });
 
+  it("anchors the date to a provided asOf and seeds it when the model returns null", async () => {
+    // Feeding a decontextualised claim with no in-text date (an eval gold), we pass the known
+    // claim date as asOf. It must become the model's "Today's date" anchor (so a 2020 claim
+    // isn't anchored to the real today) AND backfill a null model date — otherwise retrieval
+    // would be unwindowed and leak post-claim sources.
+    askJSON.mockResolvedValue([{ text: "a", date: null }]);
+    const claims = await triageUtterances("src", [u("a")], ask, 5, "2020-10-15");
+    expect(askJSON.mock.calls[0][0]).toContain("Today's date: 2020-10-15");
+    expect(claims[0].date).toBe("2020-10-15");
+  });
+
+  it("prefers the model's specific date over asOf when the model supplies one", async () => {
+    askJSON.mockResolvedValue([{ text: "a", date: "2020-10-20" }]);
+    const claims = await triageUtterances("src", [u("a")], ask, 5, "2020-10-15");
+    expect(claims[0].date).toBe("2020-10-20");
+  });
+
   it("keeps the highest-relevance claims when over maxClaims, not the first ones", async () => {
     askJSON.mockResolvedValue([
       { text: "low", checkable: true, checkworthy: true, relevance: 0.2 },

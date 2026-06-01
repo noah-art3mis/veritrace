@@ -7,3 +7,6 @@
 *.jsonl
 # ...but DO keep the tiny hand-checked smoke set under version control.
 !smoke.jsonl
+
+# Per-run eval results (verdicts + rationale + evidence) — regenerate with `npm run eval:smoke`.
+*.results.json
