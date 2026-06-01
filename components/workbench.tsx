@@ -325,6 +325,7 @@ export default function Workbench() {
           graph={graph}
           showInternals={settings.showInternals}
           showMinimap={settings.showMinimap}
+          withholdVerdict={settings.withholdVerdict}
         />
         <RunReport
           graph={graph}
@@ -333,6 +334,7 @@ export default function Workbench() {
           summary={summary}
           summaryLoading={summaryLoading}
           summaryError={summaryError}
+          withholdVerdict={settings.withholdVerdict}
         />
         {/* Reopen the brief once a run has resolved and the panel is closed. */}
         {!reportOpen && !loading && runId > 0 && graph.source.verdict !== null && (
