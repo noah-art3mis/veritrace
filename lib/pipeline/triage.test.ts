@@ -22,12 +22,12 @@ describe("triageUtterances", () => {
 
   it("assigns sequential ids, null verdicts, and pairs decontextualized text with the source fragment", async () => {
     askJSON.mockResolvedValue([
-      { text: "Springfield is a city.", checkable: true, checkworthy: true, relevant: false },
+      { text: "Springfield is a city.", checkable: true, checkworthy: true, relevance: 0 },
       {
         text: "Immigrants in Springfield are eating residents' pets.",
         checkable: true,
         checkworthy: true,
-        relevant: true,
+        relevance: 0.8,
       },
     ]);
     const claims = await triageUtterances(
@@ -64,28 +64,64 @@ describe("triageUtterances", () => {
     expect(claims[1].date).toBeUndefined();
   });
 
-  it("caps searchable claims at maxClaims, demoting the overflow to not-relevant", async () => {
-    askJSON.mockResolvedValue(
-      Array.from({ length: 4 }, (_, i) => ({
-        text: `c${i}`,
-        checkable: true,
-        checkworthy: true,
-        relevant: true,
-      })),
-    );
+  it("keeps the highest-relevance claims when over maxClaims, not the first ones", async () => {
+    askJSON.mockResolvedValue([
+      { text: "low", checkable: true, checkworthy: true, relevance: 0.2 },
+      { text: "high", checkable: true, checkworthy: true, relevance: 0.9 },
+      { text: "mid", checkable: true, checkworthy: true, relevance: 0.5 },
+      { text: "high2", checkable: true, checkworthy: true, relevance: 0.8 },
+    ]);
     const claims = await triageUtterances("src", [u("a"), u("b"), u("c"), u("d")], ask, 2);
+    // top-2 by relevance are "high" (0.9, idx 1) and "high2" (0.8, idx 3) — NOT the first two.
     expect(claims.filter(isSearchable)).toHaveLength(2);
-    expect(claims[0].relevant).toBe(true);
     expect(claims[1].relevant).toBe(true);
+    expect(claims[3].relevant).toBe(true);
+    expect(claims[0].relevant).toBe(false);
     expect(claims[2].relevant).toBe(false);
-    expect(claims[3].relevant).toBe(false);
+  });
+
+  it("drops zero-relevance background claims even when under the cap", async () => {
+    askJSON.mockResolvedValue([
+      { text: "background", checkable: true, checkworthy: true, relevance: 0 },
+      { text: "real", checkable: true, checkworthy: true, relevance: 0.7 },
+    ]);
+    const claims = await triageUtterances("src", [u("a"), u("b")], ask, 5);
+    expect(claims[0].relevant).toBe(false);
+    expect(claims[1].relevant).toBe(true);
+  });
+
+  it("demotes a low-but-nonzero background premise below the floor, even under the cap (#52)", async () => {
+    // The Imran-Khan miss: a true-but-irrelevant background premise ("X criticized Y") scored as
+    // mildly relevant rode alongside the contested numbers and flipped the document to conflicting.
+    // A barely-relevant premise must be dropped even when there's room under maxClaims.
+    askJSON.mockResolvedValue([
+      { text: "Imran Khan criticized Macron.", checkable: true, checkworthy: true, relevance: 0.2 },
+      { text: "183 visas were cancelled.", checkable: true, checkworthy: true, relevance: 0.9 },
+    ]);
+    const claims = await triageUtterances("src", [u("a"), u("b")], ask, 5);
+    expect(claims[0].relevant).toBe(false); // background premise dropped by the floor
+    expect(claims[1].relevant).toBe(true); // contested numeric claim kept
+  });
+
+  it("keeps a mid-range secondary-but-real claim above the floor", async () => {
+    askJSON.mockResolvedValue([
+      { text: "a real secondary claim", checkable: true, checkworthy: true, relevance: 0.4 },
+    ]);
+    const [c] = await triageUtterances("src", [u("a")], ask, 5);
+    expect(c.relevant).toBe(true);
+  });
+
+  it("carries the relevance score onto the claim for display", async () => {
+    askJSON.mockResolvedValue([{ text: "x", checkable: true, checkworthy: true, relevance: 0.6 }]);
+    const [c] = await triageUtterances("src", [u("a")], ask, 5);
+    expect(c.relevanceScore).toBe(0.6);
   });
 
   it("does not let an unsearchable claim consume a cap slot", async () => {
     askJSON.mockResolvedValue([
-      { text: "media claim", checkable: false, checkworthy: true, relevant: true },
-      { text: "real one", checkable: true, checkworthy: true, relevant: true },
-      { text: "real two", checkable: true, checkworthy: true, relevant: true },
+      { text: "media claim", checkable: false, checkworthy: true, relevance: 0.9 },
+      { text: "real one", checkable: true, checkworthy: true, relevance: 0.7 },
+      { text: "real two", checkable: true, checkworthy: true, relevance: 0.6 },
     ]);
     const claims = await triageUtterances("src", [u("a"), u("b"), u("c")], ask, 2);
     // The uncheckable claim doesn't eat a slot, so both real claims stay searchable.

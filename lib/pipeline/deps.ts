@@ -1,6 +1,7 @@
 import type { AnthropicCaller } from "../anthropic";
 import type { RawEvidence, SearchOptions } from "../exa";
 import type { FactCheckHit } from "../factcheck";
+import type { Reranker } from "./rerank";
 
 // The per-request dependencies threaded through the pipeline: a model caller and an
 // evidence search, both already bound to this run's config + API keys (see createAnthropic
@@ -19,4 +20,10 @@ export interface PipelineDeps {
    * novo. Given a claim, returns any existing fact-checks of it (empty = none / lookup failed).
    */
   factCheck?: (query: string) => Promise<FactCheckHit[]>;
+  /**
+   * Optional embedding re-rank (#57, ADR 0010). Present only when RunConfig.rerank is on AND a
+   * Cohere key resolved; ABSENT keeps the no-embeddings de-novo path. When present, resolveQuestion
+   * re-ranks the gathered candidates by cosine to the directional hypotheticals before classify.
+   */
+  rerank?: Reranker;
 }

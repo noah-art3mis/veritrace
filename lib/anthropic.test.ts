@@ -30,6 +30,7 @@ const baseConfig: RunConfig = {
   category: "",
   preferFresh: false,
   factCheckShortCircuit: false,
+  rerank: false,
 };
 
 beforeEach(() => {

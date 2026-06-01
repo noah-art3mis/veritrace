@@ -2,8 +2,7 @@
 // Radial-view twin of useGraphFlow: same deliberate topology-keyed layout cache (see that file for
 // why the ref-in-useMemo pattern is safe), but it runs radialLayout instead of dagre and shapes
 // each node as a circle. The node `style` carries a transform transition so that when the layout
-// reflows on a streaming tick, React Flow eases each circle to its new slot (ADR 0003's tween;
-// spring/force feel is a later refinement on top of this).
+// reflows on a streaming tick, React Flow eases each circle to its new slot (ADR 0003's tween).
 import { useMemo, useRef } from "react";
 import type { Edge } from "@xyflow/react";
 import type { FactGraph } from "@/lib/graph-types";
@@ -16,7 +15,11 @@ interface RadialCache {
   nodesById: Map<string, AppNode>;
 }
 
-const TWEEN = "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)";
+// Spring-eased settle (#12, part 1 — the "Obsidian feel"). A "back" overshoot curve lets a circle
+// slightly overshoot its computed slot and settle, instead of the prior monotonic ease-out, so a
+// streaming reflow reads as a soft spring rather than a glide. Stays motion-only per ADR 0003: the
+// radial layout remains the source of truth; the easing only animates the approach to the target.
+const TWEEN = "transform 520ms cubic-bezier(0.34, 1.56, 0.64, 1)";
 
 export function useRadialFlow(graph: FactGraph): { nodes: AppNode[]; edges: Edge[] } {
   const cache = useRef<RadialCache>({ topology: "", positions: new Map(), nodesById: new Map() });

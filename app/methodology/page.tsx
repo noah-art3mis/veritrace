@@ -29,7 +29,7 @@ const PIPELINE: { n: string; title: string; body: string; color: string }[] = [
   {
     n: "04",
     title: "Retrieve",
-    body: "Each question drives a live web search, and an agent traces every claim back to its originating source — news wires, official statements, registries — rather than stopping at re-reporting that echoes the viral claim. The verdict is built from that primary evidence: a finished third-party fact-check is treated as a lead to its underlying sources, not as the answer to copy.",
+    body: "Each question drives a live web search expanded with stance-shaped HyDE — the model writes hypothetical confirming and refuting primary-source passages and searches both directions, VERITRACE’s twist on the single neutral HyDE passage. An agent then traces every claim back to its originating source — news wires, official statements, registries — rather than stopping at re-reporting that echoes the viral claim. The verdict is built from that primary evidence: a finished third-party fact-check is treated as a lead to its underlying sources, not as the answer to copy.",
     color: "#34d399",
   },
   {
@@ -68,6 +68,14 @@ interface Ref {
 }
 
 const REFERENCES: Ref[] = [
+  {
+    key: "warren",
+    title: "Show Me the Work — Warren, Shklovski & Augenstein, 2025",
+    detail:
+      "Interviews with professional fact-checkers on what they need from automated fact-checking: not a verdict label but transparency and replicability into how a system reached its conclusion. The user requirement VERITRACE is built around — explainability as the inspectable process, not a post-hoc justification.",
+    href: "https://doi.org/10.1145/3706598.3713277",
+    hrefLabel: "doi:10.1145/3706598.3713277",
+  },
   {
     key: "AVeriTeC",
     title: "AVeriTeC — Schlichtkrull et al., 2023",
@@ -256,7 +264,7 @@ export default function MethodologyPage() {
         {/* Hero */}
         <Kicker>How it works · what it&apos;s grounded in</Kicker>
         <h1 className="font-display mt-3 text-[44px] font-semibold leading-[1.05] tracking-[-0.02em] text-[var(--ink-1)]">
-          The fact-checker that shows its work.
+          Observable AI fact checker.
         </h1>
         <p className="mt-5 max-w-2xl text-[15px] leading-[1.7] text-[var(--ink-2)]">
           VERITRACE is an observability workbench for professional fact-checkers. It performs the

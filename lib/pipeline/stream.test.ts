@@ -151,6 +151,29 @@ describe("streamPipeline verdict resolution", () => {
     const verdict = events.find((e) => e.type === "claim_verdict");
     expect(verdict).toMatchObject({ id: "c1", verdict: "nei" });
   });
+
+  it("isolates a question whose retrieval throws: the run completes instead of crashing", async () => {
+    // A single resolveQuestion rejection (e.g. an Exa outage that survived its own retries) must
+    // not propagate out of the parallel fan-out and abort every other question (issue #70). The
+    // failed question degrades to no evidence — and a trace that SAYS why — so the claim still
+    // resolves and the stream reaches `done`.
+    extractClaims.mockResolvedValue([claim("c1")]);
+    generateQuestions.mockResolvedValue([question("c1", 1), question("c1", 2)]);
+    resolveQuestion
+      .mockResolvedValueOnce(resolved([evidence("c1-q1", "supports")]))
+      .mockRejectedValueOnce(Object.assign(new Error("ETIMEDOUT"), { code: "ETIMEDOUT" }));
+
+    const events = await drain("post");
+
+    expect(events[events.length - 1].type).toBe("done"); // run completed, did not throw
+    expect(events.some((e) => e.type === "claim_verdict" && e.id === "c1")).toBe(true);
+    // The failed question still answered (degraded) and its trace explains the failure.
+    const trace = events.find(
+      (e): e is Extract<PipelineEvent, { type: "question_trace" }> =>
+        e.type === "question_trace" && e.id === "c1-q2",
+    );
+    expect(trace?.trace.gatherSummary).toMatch(/failed|timedout/i);
+  });
 });
 
 describe("streamPipeline fact-check short-circuit", () => {
@@ -256,8 +279,23 @@ describe("collectGraph", () => {
     expect(graph.source.verdict).toBe("supported");
   });
 
-  it("aggregates a mixed support+refute document to conflicting end-to-end", async () => {
-    // One claim whose two questions return opposing evidence → claim conflicting → source conflicting.
+  it("aggregates a cherrypicking document (one supported + one refuted claim) to conflicting (ADR 0007)", async () => {
+    // Cherrypicking is a DOCUMENT property: two equally load-bearing claims pulling opposite ways.
+    extractClaims.mockResolvedValue([claim("c1"), claim("c2")]);
+    generateQuestions.mockImplementation(async (c: ClaimItem) => [question(c.id, 1)]);
+    resolveQuestion.mockImplementation(async (_c: ClaimItem, q: QuestionItem) =>
+      resolved([evidence(q.id, q.claimId === "c1" ? "supports" : "refutes")]),
+    );
+
+    const graph = await collectGraph("post", deps);
+    expect(graph.claims.find((c) => c.id === "c1")!.verdict).toBe("supported");
+    expect(graph.claims.find((c) => c.id === "c2")!.verdict).toBe("refuted");
+    expect(graph.source.verdict).toBe("conflicting");
+  });
+
+  it("resolves a single claim with opposing evidence to nei, not conflicting, end-to-end (ADR 0007)", async () => {
+    // One atomic claim whose two questions return opposing evidence is inconclusive — the
+    // ivermectin / border-barriers case — never claim-level conflicting.
     extractClaims.mockResolvedValue([claim("c1")]);
     generateQuestions.mockResolvedValue([question("c1", 1), question("c1", 2)]);
     resolveQuestion.mockImplementation(async (_c: ClaimItem, q: QuestionItem) =>
@@ -265,8 +303,8 @@ describe("collectGraph", () => {
     );
 
     const graph = await collectGraph("post", deps);
-    expect(graph.claims[0].verdict).toBe("conflicting");
-    expect(graph.source.verdict).toBe("conflicting");
+    expect(graph.claims[0].verdict).toBe("nei");
+    expect(graph.source.verdict).toBe("nei");
   });
 
   it("leaves a relevance-dropped claim unverdicted and counts it as dropped, not NEI", async () => {

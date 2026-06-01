@@ -22,9 +22,12 @@ jobs:
         run: npm ci
 
       # Supply-chain guard (the npm analog of judex-mini's uv exclude-newer):
-      # fail the build on known high/critical-severity advisories.
+      # fail the build on known high/critical-severity advisories in SHIPPED deps.
+      # --omit=dev: dev-only tooling (e.g. the vitest UI server advisory GHSA-5xrq-8626-4rwp)
+      # never runs in CI or production, so it shouldn't gate merges; prod deps are still audited
+      # at the same high/critical threshold. See #84.
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Typecheck
         run: npm run typecheck

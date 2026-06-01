@@ -93,12 +93,34 @@ describe("classifyEvidence", () => {
     expect(e.sourceType).toBe("secondary");
   });
 
+  it("overrides the model DOWNWARD for a consensus low-credibility domain", async () => {
+    // The static list is authoritative both ways: a known low-credibility outlet can't be
+    // promoted to high by an over-generous model rating, so it can't move a verdict.
+    askJSON.mockResolvedValue([
+      { stance: "supports", reliability: "high", sourceType: "primary", stanceConfidence: 0.9 },
+    ]);
+    const [e] = await classifyEvidence(
+      claim,
+      question,
+      [raw({ domain: "infowars.com", url: "https://infowars.com/x" })],
+      ask,
+    );
+    expect(e.reliability).toBe("low");
+    expect(e.stance).toBe("supports"); // stance untouched
+  });
+
   it("falls back to a low-confidence contextual classification when one is missing", async () => {
     // Model returned fewer classifications than sources — the extra source must still map.
     askJSON.mockResolvedValue([
       { stance: "supports", reliability: "high", sourceType: "primary", stanceConfidence: 0.9 },
     ]);
-    const out = await classifyEvidence(claim, question, [raw(), raw()], ask);
+    // Unknown domains so the static credibility list doesn't override the fallback's "low".
+    const out = await classifyEvidence(
+      claim,
+      question,
+      [raw({ domain: "unknown-a.example" }), raw({ domain: "unknown-b.example" })],
+      ask,
+    );
     expect(out[1]).toMatchObject({
       stance: "contextualizes",
       reliability: "low",

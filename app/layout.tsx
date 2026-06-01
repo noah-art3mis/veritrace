@@ -26,7 +26,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VERITRACE — the AI fact-checker that shows its work",
+  title: "VERITRACE — Observable AI fact checker",
   description:
     "Paste a viral claim and watch an AI fact-check it live: it decomposes the claim, asks the questions a fact-checker would, and gathers primary sources into a traversable evidence graph. The verdict is advisory — you make the call.",
 };

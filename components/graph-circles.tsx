@@ -1,4 +1,4 @@
-import { memo, useContext } from "react";
+import { memo } from "react";
 import { Handle, Position, type NodeProps, type NodeTypes } from "@xyflow/react";
 import type {
   SourceNode,
@@ -11,7 +11,7 @@ import { CIRCLE_DIAMETER } from "@/lib/radial-layout";
 import { VERDICT_META, STANCE_META, RELIABILITY_META, ACCENT } from "@/lib/visuals";
 import { isDeciding } from "@/lib/pipeline/verdict";
 import { isRelevanceDropped } from "@/lib/pipeline/claim-status";
-import { InternalsContext } from "./graph-nodes";
+import { SourceCard, ClaimCard, QuestionCard, EvidenceCard } from "./graph-nodes";
 
 // The radial "Constellation" view (ADR 0003) renders each node as a coloured circle instead of a
 // card. One channel per signal so a small dot stays legible:
@@ -97,6 +97,16 @@ function Circle({
   );
 }
 
+// Source/claim circles must read as OPAQUE — matching the question circles — so the background
+// grid and connectors don't show through and muddy legibility (#30). The verdict `soft` tint is
+// translucent, so we composite it over the opaque panel: two flat gradient stops of the tint
+// layered on var(--panel-2) yield an opaque fill that still carries the verdict colour. (The
+// verdict is also on the border; `dim` opacity for dropped claims is unaffected — that stays the
+// one meaning of transparency here.)
+function opaqueFill(tint: string): string {
+  return `linear-gradient(0deg, ${tint}, ${tint}), var(--panel-2)`;
+}
+
 /* Source — aggregate Verdict, biggest circle, never starred. */
 function SourceCircle({ data }: NodeProps<SourceNode>) {
   const m = data.item.verdict ? VERDICT_META[data.item.verdict] : null;
@@ -104,7 +114,7 @@ function SourceCircle({ data }: NodeProps<SourceNode>) {
     <Circle
       diameter={CIRCLE_DIAMETER[0]}
       border={m?.color ?? ACCENT}
-      fill={m?.soft ?? "rgba(58,214,230,0.10)"}
+      fill={opaqueFill(m?.soft ?? "rgba(58,214,230,0.10)")}
       pulse={!data.item.verdict}
     />
   );
@@ -117,7 +127,7 @@ function ClaimCircle({ data }: NodeProps<ClaimNode>) {
     <Circle
       diameter={CIRCLE_DIAMETER[1]}
       border={m?.color ?? ACCENT}
-      fill={m?.soft ?? "rgba(58,214,230,0.08)"}
+      fill={opaqueFill(m?.soft ?? "rgba(58,214,230,0.08)")}
       star={data.item.verdict === "refuted"}
       dim={isRelevanceDropped(data.item)}
       pulse={!data.item.verdict && !isRelevanceDropped(data.item)}
@@ -172,39 +182,59 @@ export const circleNodeTypes: NodeTypes = {
 // spelled out in words, so it reads without seeing hue); opening adds the body. This is the
 // non-colour path that keeps the circle view usable on touch and for colourblind users.
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <p className="font-mono text-[10px] leading-[1.5] text-[var(--ink-2)]">
-      <span className="uppercase tracking-wider text-[var(--ink-4)]">{label} </span>
-      {children}
-    </p>
-  );
-}
-
-function detailHead(node: AppNode): { kicker: string; colourWord: string; colour: string } {
+function detailHead(node: AppNode): {
+  kicker: string;
+  colourWord: string;
+  colour: string;
+  glyph: string;
+} {
   switch (node.type) {
     case "source": {
       const m = node.data.item.verdict ? VERDICT_META[node.data.item.verdict] : null;
-      return { kicker: "Source", colourWord: m?.label ?? "analyzing", colour: m?.color ?? ACCENT };
+      return {
+        kicker: "Source",
+        colourWord: m?.label ?? "analyzing",
+        colour: m?.color ?? ACCENT,
+        glyph: m?.glyph ?? "•",
+      };
     }
     case "claim": {
       const m = node.data.item.verdict ? VERDICT_META[node.data.item.verdict] : null;
+      const dropped = isRelevanceDropped(node.data.item);
       return {
         kicker: `Claim · ${node.data.item.id.toUpperCase()}`,
-        colourWord: isRelevanceDropped(node.data.item) ? "dropped" : (m?.label ?? "analyzing"),
+        colourWord: dropped ? "dropped" : (m?.label ?? "analyzing"),
         colour: m?.color ?? ACCENT,
+        glyph: dropped ? "▽" : (m?.glyph ?? "•"),
       };
     }
     case "question":
-      return { kicker: "Question", colourWord: node.data.item.status, colour: ACCENT };
+      return { kicker: "Question", colourWord: node.data.item.status, colour: ACCENT, glyph: "•" };
     case "evidence": {
       const s = STANCE_META[node.data.item.stance];
       return {
         kicker: `Evidence · ${node.data.item.domain}`,
         colourWord: `${s.label} · ${node.data.item.reliability} reliability`,
         colour: s.color,
+        glyph: s.glyph,
       };
     }
+  }
+}
+
+/* The opened panel renders the REAL card component (handle-free), for visual parity with the card
+   view (#48). The cards read InternalsContext / WithholdVerdictContext themselves, so internals and
+   the withheld-verdict state carry through. Handles are off — NodeDetail isn't a node context. */
+function RealCard({ node }: { node: AppNode }) {
+  switch (node.type) {
+    case "source":
+      return <SourceCard item={node.data.item} withHandles={false} />;
+    case "claim":
+      return <ClaimCard item={node.data.item} withHandles={false} />;
+    case "question":
+      return <QuestionCard item={node.data.item} withHandles={false} />;
+    case "evidence":
+      return <EvidenceCard item={node.data.item} withHandles={false} />;
   }
 }
 
@@ -219,10 +249,25 @@ export function NodeDetail({
   onOpen: () => void;
   onClose: () => void;
 }) {
-  const internals = useContext(InternalsContext);
   const head = detailHead(node);
-  const item = node.data.item;
 
+  // Opened: show the actual card (#48) so the open state matches the card view exactly.
+  if (full) {
+    return (
+      <div className="flex max-w-[88vw] flex-col items-end gap-1.5">
+        <RealCard node={node} />
+        <button
+          onClick={onClose}
+          className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)] hover:text-[var(--ink-1)]"
+        >
+          close ✕
+        </button>
+      </div>
+    );
+  }
+
+  // Peek (hover / first tap): the compact identity head — the colour spelled out in words so it
+  // reads without seeing hue. A second click ("open") swaps in the real card above.
   return (
     <div
       className="w-[300px] max-w-[84vw] rounded-lg border border-[var(--line-2)] bg-[var(--panel)] p-3 shadow-xl"
@@ -236,80 +281,46 @@ export function NodeDetail({
           className="font-mono text-[9.5px] uppercase tracking-wider"
           style={{ color: head.colour }}
         >
-          ● {head.colourWord}
+          <span aria-hidden className="font-bold">
+            {head.glyph}
+          </span>{" "}
+          {head.colourWord}
         </span>
       </div>
 
       {node.type === "source" && (
-        <p className="font-display text-[13px] leading-[1.5] text-[var(--ink-1)]">
+        <p className="font-display line-clamp-3 text-[13px] leading-[1.5] text-[var(--ink-1)]">
           {node.data.item.text}
         </p>
       )}
       {node.type === "claim" && (
-        <p className="text-[12px] font-medium leading-[1.4] text-[var(--ink-1)]">
+        <p className="line-clamp-3 text-[12px] font-medium leading-[1.4] text-[var(--ink-1)]">
           {node.data.item.text}
         </p>
       )}
       {node.type === "question" && (
-        <p className="font-mono text-[11px] leading-[1.5] text-[var(--ink-2)]">
+        <p className="line-clamp-3 font-mono text-[11px] leading-[1.5] text-[var(--ink-2)]">
           {node.data.item.text}
         </p>
       )}
       {node.type === "evidence" && (
-        <a
-          href={node.data.item.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block text-[12px] font-semibold leading-[1.35] text-[var(--ink-1)] hover:underline"
-        >
+        <span className="block truncate text-[12px] font-semibold leading-[1.35] text-[var(--ink-1)]">
           {node.data.item.title}
-        </a>
-      )}
-
-      {full && (
-        <div className="mt-2 flex flex-col gap-1 border-t border-[var(--line)] pt-2">
-          {node.type === "claim" && node.data.item.rationale && (
-            <Row label="why">{node.data.item.rationale}</Row>
-          )}
-          {node.type === "evidence" && (
-            <>
-              <p
-                className="font-display border-l pl-2 text-[11px] italic leading-[1.45] text-[var(--ink-2)]"
-                style={{ borderColor: head.colour }}
-              >
-                “{node.data.item.passage}”
-              </p>
-              <Row label="type">{node.data.item.sourceType}</Row>
-              {internals && node.data.item.stanceConfidence != null && (
-                <Row label="conf">{Math.round(node.data.item.stanceConfidence * 100)}%</Row>
-              )}
-            </>
-          )}
-          {node.type === "question" && internals && node.data.item.trace?.gatherSummary && (
-            <Row label="summary">{node.data.item.trace.gatherSummary}</Row>
-          )}
-          {node.type === "source" && "tally" in item && item.tally && (
-            <Row label="tally">
-              {item.tally.supported}/{item.tally.total} supported
-            </Row>
-          )}
-        </div>
+        </span>
       )}
 
       <div className="mt-2 flex items-center justify-end gap-2">
-        {!full && (
-          <button
-            onClick={onOpen}
-            className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--accent)] hover:underline"
-          >
-            open ↗
-          </button>
-        )}
+        <button
+          onClick={onOpen}
+          className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--accent)] hover:underline"
+        >
+          open ↗
+        </button>
         <button
           onClick={onClose}
           className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--ink-3)] hover:text-[var(--ink-1)]"
         >
-          {full ? "close ✕" : "dismiss"}
+          dismiss
         </button>
       </div>
     </div>

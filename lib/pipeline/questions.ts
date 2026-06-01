@@ -9,7 +9,7 @@ const systemPrompt = (maxQuestions: number) =>
 
 Rules:
 - At most ${maxQuestions} question${maxQuestions === 1 ? "" : "s"}, each independently searchable on the open web (include the date/place/actor from the claim so the question stands alone).
-- Prefer questions that primary sources (news wires, official statements, registries) can answer. For a claim that could be an official-denial type, ask both the existence question AND whether authorities confirmed or denied it.
+- Prefer questions that primary sources (news wires, official statements, registries) can answer. For a contested event claim, cover more than one angle — e.g. whether the event occurred and whether it was subsequently confirmed or contradicted — so retrieval isn't biased toward a single framing.
 - Plain, neutral phrasing. No leading questions.
 
 Respond with ONLY a JSON array of strings, no prose:

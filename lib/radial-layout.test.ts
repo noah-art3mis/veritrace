@@ -93,6 +93,9 @@ describe("buildRadialEdges", () => {
     // claim has both deciding support and refutation here).
     expect(edges).toHaveLength(8);
     const stance = edges.find((e) => e.target === "c2-q1-e1")!;
-    expect(stance.label).toBe("refutes");
+    // The stance label now rides in `data` for the zoom-aware custom edge (#47), not the
+    // always-on `label` prop.
+    expect(stance.type).toBe("radialLabel");
+    expect(stance.data).toMatchObject({ label: "refutes" });
   });
 });

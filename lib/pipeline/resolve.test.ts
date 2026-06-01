@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { rationaleFor, dateWindow, resolveQuestion, rankAndCapEvidence } from "./resolve";
+import {
+  rationaleFor,
+  dateWindow,
+  resolveQuestion,
+  rankAndCapEvidence,
+  dropClaimEchoes,
+} from "./resolve";
 import { claimVerdict } from "./verdict";
 import type { ClaimItem, EvidenceItem, QuestionItem, Stance } from "../graph-types";
 import type { RawEvidence } from "../exa";
@@ -31,6 +37,62 @@ function evidence(
   };
 }
 
+describe("dropClaimEchoes", () => {
+  const CLAIM = "Armed CJNG members seized Guadalajara International Airport on 22 February 2026";
+  let n = 0;
+  function rawEv(passage: string, over: Partial<RawEvidence> = {}): RawEvidence {
+    return {
+      title: "t",
+      url: `https://ex.com/${n++}`,
+      domain: "ex.com",
+      passage,
+      text: passage,
+      ...over,
+    };
+  }
+
+  it("drops a passage that is a verbatim restatement of the claim", () => {
+    const kept = dropClaimEchoes(CLAIM, [rawEv(CLAIM)]);
+    expect(kept).toHaveLength(0);
+  });
+
+  it("drops a near-verbatim echo differing only in case and punctuation", () => {
+    const echo = "armed cjng members seized guadalajara international airport on 22 february 2026.";
+    expect(dropClaimEchoes(CLAIM, [rawEv(echo)])).toHaveLength(0);
+  });
+
+  it("keeps a short passage that quotes the claim and then refutes it", () => {
+    // Same words as the claim plus a verification cue — this is doing the work, not echoing.
+    const refute = `${CLAIM}. This is false; officials denied any airport seizure.`;
+    expect(dropClaimEchoes(CLAIM, [rawEv(refute)])).toHaveLength(1);
+  });
+
+  it("keeps a long article that merely contains the claim among other reporting", () => {
+    const article =
+      `Security across Mexican airports was reviewed this month. ${CLAIM}, according to a viral post. ` +
+      "However, the federal aviation authority's logs, airline statements, and on-site reporters all " +
+      "described normal operations throughout the period, with no evacuation, no hostages, and no closure.";
+    expect(dropClaimEchoes(CLAIM, [rawEv(article)])).toHaveLength(1);
+  });
+
+  it("keeps genuinely independent evidence with low overlap", () => {
+    const indep = rawEv("Federal police reported routine patrols at the terminal that week.");
+    expect(dropClaimEchoes(CLAIM, [indep])).toEqual([indep]);
+  });
+
+  it("keeps everything when the claim text is empty (nothing to compare)", () => {
+    const items = [rawEv("anything at all")];
+    expect(dropClaimEchoes("", items)).toEqual(items);
+  });
+
+  it("removes only the echoes and preserves the order of the rest", () => {
+    const a = rawEv("Independent reporting on terminal security staffing levels.");
+    const echo = rawEv(CLAIM);
+    const b = rawEv("A separate dispatch about regional cartel movements that month.");
+    expect(dropClaimEchoes(CLAIM, [a, echo, b])).toEqual([a, b]);
+  });
+});
+
 describe("rationaleFor", () => {
   it("explains an unckeckable claim by its media-provenance limit, ignoring verdict", () => {
     const text = rationaleFor(claim({ checkable: false }), "nei", []);
@@ -56,6 +118,19 @@ describe("rationaleFor", () => {
     expect(text).toMatch(/found 2 sources/i);
     expect(text).toContain("blog.example");
     expect(text).toMatch(/none cleared the reliability/i);
+  });
+
+  it("explains an echo-chamber nei: reliable sources found, but all re-reporting (no primary)", () => {
+    // #51: high-reliability supports, but every source is secondary re-reporting → the rationale
+    // must name re-reporting / no originating source, not "none cleared the reliability bar".
+    const ev = [
+      evidence("supports", "reuters.com", "high", "secondary"),
+      evidence("supports", "ap.org", "high", "secondary"),
+    ];
+    const text = rationaleFor(claim(), "nei", ev);
+    expect(text).toMatch(/re-reporting/i);
+    expect(text).toMatch(/no primary|originating source/i);
+    expect(text).not.toMatch(/none cleared the reliability/i);
   });
 
   it("names the supporting domains for a supported verdict and flags a primary source", () => {
@@ -135,8 +210,9 @@ describe("rankAndCapEvidence", () => {
   });
 
   it("preserves the verdict across the cap by keeping the top deciding support and refute", () => {
-    // 8 deciding supports would crowd out the lone refute on a naive top-N slice, flipping
-    // a Conflicting claim to Supported. The cap must retain the deciding refute.
+    // 8 deciding supports would crowd out the lone refute on a naive top-N slice, flipping the
+    // claim's verdict from NEI (mixed evidence is inconclusive — ADR 0007) to a false Supported.
+    // The cap must retain the deciding refute so the verdict is preserved.
     const supports = Array.from({ length: 8 }, (_, i) =>
       evidence("supports", `s${i}.com`, "high", "primary"),
     );
@@ -145,9 +221,9 @@ describe("rankAndCapEvidence", () => {
     const capped = rankAndCapEvidence(full, 4);
     expect(capped).toHaveLength(4);
     expect(capped.some((e) => e.stance === "refutes")).toBe(true);
-    // Verdict on the capped set matches the verdict on the full set.
+    // Verdict on the capped set matches the verdict on the full set — NEI, not a false Supported.
     expect(claimVerdict(claim(), capped)).toBe(claimVerdict(claim(), full));
-    expect(claimVerdict(claim(), capped)).toBe("conflicting");
+    expect(claimVerdict(claim(), capped)).toBe("nei");
   });
 });
 
@@ -254,9 +330,24 @@ describe("resolveQuestion (agentic gather loop)", () => {
     );
 
     const out = await resolveQuestion(claim(), question, d);
-    expect(search).toHaveBeenCalledTimes(2);
-    // 4 raw results (b.com twice) collapse to 3 unique evidence items.
+    // 2 RRF directional seed searches (question + 1 anchor) + the model's 2 follow-ups (#56).
+    expect(search).toHaveBeenCalledTimes(4);
+    // Results across all queries collapse to 3 unique evidence items (deduped by url).
     expect(out.evidence.map((e) => e.domain).sort()).toEqual(["a.com", "b.com", "c.com"]);
+  });
+
+  it("survives a search failure: degrades that query but keeps the loop and run alive", async () => {
+    // A transient Exa timeout on one query must NOT abort the gather loop (and via Promise.race,
+    // the whole run). The model gets an error result and the question resolves on what's left.
+    const search = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error("ETIMEDOUT"), { code: "ETIMEDOUT" }));
+    const d = deps({ search }, ["q1", "q2"]);
+    const out = await resolveQuestion(claim(), question, d);
+    expect(out.evidence).toEqual([]);
+    // Seed searches AND the model's follow-ups are all attempted; no failure aborts the loop.
+    expect(search).toHaveBeenCalledTimes(4);
+    expect(out.trace.searchQueries).toEqual(expect.arrayContaining(["q1", "q2"]));
   });
 
   it("returns a trace: HyDE hypothetical, the executed queries, and the gather summary", async () => {
@@ -271,8 +362,10 @@ describe("resolveQuestion (agentic gather loop)", () => {
       ["q1", "q2"],
     );
     const out = await resolveQuestion(claim(), question, d);
-    expect(out.trace.hydePassage).toBe("A neutral hypothetical report.");
-    expect(out.trace.searchQueries).toEqual(["q1", "q2"]);
+    // expandQuery now labels the directional anchor(s); the passage text is still carried through.
+    expect(out.trace.hydePassage).toContain("A neutral hypothetical report.");
+    // searchQueries now records the RRF seed queries (question + anchors) plus the model's queries.
+    expect(out.trace.searchQueries).toEqual(expect.arrayContaining(["q1", "q2"]));
     expect(out.trace.gatherSummary).toBe("done");
   });
 });

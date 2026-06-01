@@ -1,4 +1,11 @@
-import type { FactGraph, ClaimItem, QuestionItem, EvidenceItem, Verdict } from "../graph-types";
+import type {
+  FactGraph,
+  ClaimItem,
+  QuestionItem,
+  EvidenceItem,
+  Verdict,
+  QuestionTrace,
+} from "../graph-types";
 import type { PipelineEvent } from "./events";
 import type { PipelineDeps } from "./deps";
 import { extractClaims } from "./extract";
@@ -52,7 +59,9 @@ export async function* streamPipeline(
       if (hits.length === 0) continue;
       const questionId = `${c.id}-fc`;
       const evidence = factCheckEvidence(hits, questionId);
-      const verdict = claimVerdict(c, evidence);
+      // The short-circuit trusts a published fact-checker's adjudication, which is `secondary`
+      // by design — so it opts out of the de-novo primary-source guard (#51).
+      const verdict = claimVerdict(c, evidence, { requirePrimary: false });
       if (verdict === "nei") continue; // no confident existing adjudication → keep de novo
       shortCircuited.add(c.id);
       verdictByClaim.set(c.id, verdict);
@@ -109,11 +118,21 @@ export async function* streamPipeline(
   for (const q of allQuestions) yield { type: "question_status", id: q.id, status: "searching" };
 
   const tasks = allQuestions.map((q) =>
-    resolveQuestion(claimById.get(q.claimId)!, q, deps).then(({ evidence, trace }) => ({
-      q,
-      evidence,
-      trace,
-    })),
+    resolveQuestion(claimById.get(q.claimId)!, q, deps)
+      .then(({ evidence, trace }) => ({ q, evidence, trace }))
+      // Isolate per-question failures: a single question whose retrieval throws (an Exa outage
+      // that outlived its retries, a classify error) must not abort the parallel fan-out and kill
+      // every other question (issue #70). Degrade it to no evidence — with a trace that SAYS why,
+      // upholding the transparency principle — so the claim still resolves and the run finishes.
+      .catch((err: unknown) => ({
+        q,
+        evidence: [] as EvidenceItem[],
+        trace: {
+          hydePassage: "",
+          searchQueries: [],
+          gatherSummary: `Retrieval failed: ${err instanceof Error ? err.message : String(err)}`,
+        } satisfies QuestionTrace,
+      })),
   );
 
   for await (const { q, evidence, trace } of asCompleted(tasks)) {
@@ -144,7 +163,13 @@ export async function* streamPipeline(
   const checked = claims.filter((c) => !isRelevanceDropped(c));
   const verdicts = checked.map((c) => verdictByClaim.get(c.id) ?? "nei");
   const tally = tallyClaims(verdicts, claims.length - checked.length);
-  yield { type: "source_verdict", verdict: sourceVerdict(verdicts), tally };
+  // Weight the document verdict by each claim's load-bearingness (ADR 0007) so a stray
+  // low-relevance claim can't flip it; cherrypicking needs both sides substantial.
+  const weighted = checked.map((c) => ({
+    verdict: verdictByClaim.get(c.id) ?? "nei",
+    relevanceScore: c.relevanceScore,
+  }));
+  yield { type: "source_verdict", verdict: sourceVerdict(weighted), tally };
   yield { type: "done" };
 }
 
