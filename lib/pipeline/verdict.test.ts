@@ -10,7 +10,11 @@ function claim(over: Partial<ClaimItem> = {}): ClaimItem {
 }
 
 let evId = 0;
-function evidence(stance: Stance, stanceConfidence: number): EvidenceItem {
+function evidence(
+  stance: Stance,
+  stanceConfidence: number,
+  sourceType: EvidenceItem["sourceType"] = "primary",
+): EvidenceItem {
   return {
     id: `e${evId++}`,
     questionId: "q1",
@@ -20,7 +24,7 @@ function evidence(stance: Stance, stanceConfidence: number): EvidenceItem {
     passage: "p",
     stance,
     reliability: "high",
-    sourceType: "primary",
+    sourceType,
     stanceConfidence,
   };
 }
@@ -82,6 +86,27 @@ describe("claimVerdict", () => {
   it("does not let a weak refutation flip a confident support to conflicting", () => {
     const ev = [evidence("supports", 0.9), evidence("refutes", 0.3)];
     expect(claimVerdict(claim(), ev)).toBe("supported");
+  });
+
+  // Echo-chamber guard (#51): reliable re-reporting that never reaches an originating source
+  // cannot establish a verdict. The Santander-scam miss had only supports/secondary evidence and
+  // was wrongly predicted "supported"; it must abstain to NEI.
+  it("abstains to nei when all deciding evidence is secondary re-reporting (no primary)", () => {
+    const ev = [evidence("supports", 0.9, "secondary"), evidence("supports", 0.8, "secondary")];
+    expect(claimVerdict(claim(), ev)).toBe("nei");
+  });
+
+  it("abstains to nei when only secondary refutation exists (no primary)", () => {
+    expect(claimVerdict(claim(), [evidence("refutes", 0.9, "secondary")])).toBe("nei");
+  });
+
+  it("decides normally once at least one deciding source is primary", () => {
+    const ev = [evidence("supports", 0.9, "secondary"), evidence("supports", 0.8, "primary")];
+    expect(claimVerdict(claim(), ev)).toBe("supported");
+  });
+
+  it("treats an opinion-typed deciding source as non-primary (still abstains)", () => {
+    expect(claimVerdict(claim(), [evidence("supports", 0.9, "opinion")])).toBe("nei");
   });
 });
 

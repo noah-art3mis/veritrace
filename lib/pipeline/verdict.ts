@@ -25,14 +25,35 @@ export function isDeciding(e: EvidenceItem): boolean {
   );
 }
 
-/** Aggregate a single claim's evidence into its advisory Verdict. */
-export function claimVerdict(claim: ClaimItem, evidence: EvidenceItem[]): Verdict {
+/**
+ * Aggregate a single claim's evidence into its advisory Verdict.
+ *
+ * `requirePrimary` (default true) enforces the de-novo echo-chamber guard (#51). The opt-in
+ * fact-check short-circuit passes `false`: a known fact-checker's published adjudication is a
+ * deliberate, documented bypass of the de-novo bar (CONTEXT.md — fact-checks are trusted
+ * waypoints), and its evidence is `secondary` by design, so the primary requirement must not
+ * apply there or the short-circuit could never fire.
+ */
+export function claimVerdict(
+  claim: ClaimItem,
+  evidence: EvidenceItem[],
+  opts: { requirePrimary?: boolean } = {},
+): Verdict {
+  const { requirePrimary = true } = opts;
   // Non-searchable claims resolve to NEI by design without consuming the evidence bar:
   // relevance-dropped background, media-provenance claims a text+web build can't check, and
   // subjective claims (opinion / value judgement / prediction) that no primary source settles.
   if (!isSearchable(claim)) return "nei";
 
   const deciding = evidence.filter(isDeciding);
+
+  // Echo-chamber guard (#51): a de-novo verdict requires at least one PRIMARY/originating source
+  // among the deciding evidence. Reliable re-reporting alone (all secondary/opinion) — however
+  // consistent — cannot establish supported/refuted; it abstains to NEI. The "keep searching
+  // until ≥1 primary" rule was only ever told to the gather model (resolve.ts MIN_DECIDING);
+  // this enforces it at verdict time, where it actually binds the outcome.
+  if (requirePrimary && !deciding.some((e) => e.sourceType === "primary")) return "nei";
+
   const supports = deciding.some((e) => e.stance === "supports");
   const refutes = deciding.some((e) => e.stance === "refutes");
 

@@ -120,6 +120,19 @@ describe("rationaleFor", () => {
     expect(text).toMatch(/none cleared the reliability/i);
   });
 
+  it("explains an echo-chamber nei: reliable sources found, but all re-reporting (no primary)", () => {
+    // #51: high-reliability supports, but every source is secondary re-reporting → the rationale
+    // must name re-reporting / no originating source, not "none cleared the reliability bar".
+    const ev = [
+      evidence("supports", "reuters.com", "high", "secondary"),
+      evidence("supports", "ap.org", "high", "secondary"),
+    ];
+    const text = rationaleFor(claim(), "nei", ev);
+    expect(text).toMatch(/re-reporting/i);
+    expect(text).toMatch(/no primary|originating source/i);
+    expect(text).not.toMatch(/none cleared the reliability/i);
+  });
+
   it("names the supporting domains for a supported verdict and flags a primary source", () => {
     const ev = [evidence("supports", "bbc.com"), evidence("supports", "reuters.com")];
     expect(rationaleFor(claim(), "supported", ev)).toBe(

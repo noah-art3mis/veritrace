@@ -59,7 +59,9 @@ export async function* streamPipeline(
       if (hits.length === 0) continue;
       const questionId = `${c.id}-fc`;
       const evidence = factCheckEvidence(hits, questionId);
-      const verdict = claimVerdict(c, evidence);
+      // The short-circuit trusts a published fact-checker's adjudication, which is `secondary`
+      // by design — so it opts out of the de-novo primary-source guard (#51).
+      const verdict = claimVerdict(c, evidence, { requirePrimary: false });
       if (verdict === "nei") continue; // no confident existing adjudication → keep de novo
       shortCircuited.add(c.id);
       verdictByClaim.set(c.id, verdict);

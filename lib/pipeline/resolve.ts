@@ -268,6 +268,13 @@ export function rationaleFor(claim: ClaimItem, verdict: Verdict, evidence: Evide
     if (evidence.length === 0) {
       return "No primary sources answered this claim's questions.";
     }
+    // Echo-chamber abstention (#51): reliable sources were found, but every deciding one is
+    // re-reporting — no originating source — so the verdict abstains rather than trust the echo.
+    const deciding = evidence.filter(isDeciding);
+    if (deciding.length > 0 && !deciding.some((e) => e.sourceType === "primary")) {
+      const d = uniqueDomains(deciding);
+      return `Found ${deciding.length} reliable source${deciding.length === 1 ? "" : "s"} (${d}) but all are re-reporting — no primary/originating source to establish the claim.`;
+    }
     const found = uniqueDomains(evidence);
     const n = evidence.length;
     return `Found ${n} source${n === 1 ? "" : "s"} (${found}) but none cleared the reliability and clarity bar.`;
