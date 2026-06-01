@@ -4,13 +4,15 @@ import { isSearchable } from "./claim-status";
 // Deterministic verdict aggregation — STATED, not learned (PLAN.md / CONTEXT.md). The
 // mapping from evidence to verdict is a fixed rule the user can inspect, not a black box.
 //
-// Two orthogonal, stated gates decide whether a piece of evidence can MOVE a verdict:
-//   1. stance legibility — the classifier read the stance clearly enough (stanceConfidence).
-//   2. evidence quality  — VERITRACE's core principle (CONTEXT.md) is that a verdict's
+// Three orthogonal, stated gates decide whether a piece of evidence can MOVE a verdict:
+//   1. stance commitment — the source takes a side. Contextual background neither supports nor
+//      refutes, so it can never establish or flip a verdict (and must not earn the deciding star).
+//   2. stance legibility — the classifier read that stance clearly enough (stanceConfidence).
+//   3. evidence quality  — VERITRACE's core principle (CONTEXT.md) is that a verdict's
 //      uncertainty lives in SOURCE RELIABILITY, not a bare confidence %. So a low-reliability
 //      source (blog / social aggregator / anonymous) can only *contextualize* — it cannot
 //      establish or flip a verdict on its own. Only high/medium reliability decides.
-// Evidence failing either gate leaves the claim at Not-Enough-Evidence.
+// Evidence failing any gate leaves the claim at Not-Enough-Evidence.
 
 // Minimum stance-confidence for the classifier's stance reading to count at all.
 const MIN_STANCE_CONFIDENCE = 0.5;
@@ -18,10 +20,12 @@ const MIN_STANCE_CONFIDENCE = 0.5;
 // Reliability tiers allowed to *establish* a verdict; "low" can only contextualize.
 const DECIDING_RELIABILITY: ReadonlySet<Reliability> = new Set<Reliability>(["high", "medium"]);
 
-/** Whether an evidence item carries enough quality + clarity to move a verdict. */
+/** Whether an evidence item carries enough commitment + quality + clarity to move a verdict. */
 export function isDeciding(e: EvidenceItem): boolean {
   return (
-    DECIDING_RELIABILITY.has(e.reliability) && (e.stanceConfidence ?? 0) >= MIN_STANCE_CONFIDENCE
+    e.stance !== "contextualizes" &&
+    DECIDING_RELIABILITY.has(e.reliability) &&
+    (e.stanceConfidence ?? 0) >= MIN_STANCE_CONFIDENCE
   );
 }
 
