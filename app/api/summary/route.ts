@@ -4,9 +4,9 @@ import { summarizeGraph } from "@/lib/pipeline/summarize";
 import type { FactGraph } from "@/lib/graph-types";
 
 // Post-run narrative summary. The client sends a *finished* graph (the same shape the live
-// build produced, or a cached replay) plus the run config, and gets back a short prose brief
-// for the report panel. One non-streaming model call — kept off the /api/check hot path so the
-// graph can finish rendering first, and so it works identically for live and cached runs.
+// build produced) plus the run config, and gets back a short prose brief for the report panel.
+// One non-streaming model call — kept off the /api/check hot path so the graph can finish
+// rendering first.
 export const runtime = "nodejs";
 export const maxDuration = 30;
 

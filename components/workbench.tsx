@@ -10,10 +10,6 @@ import { MOCK_GRAPH } from "@/lib/mock-graph";
 import type { FactGraph } from "@/lib/graph-types";
 import type { PipelineEvent } from "@/lib/pipeline/events";
 import { applyEvent, emptyGraph } from "@/lib/apply-event";
-import { DEMO_CACHE } from "@/lib/demo-cache";
-import { graphToEvents } from "@/lib/replay";
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Persist run settings (model / temperature / thinking + the user's optional API keys)
 // in this browser, so a tester's configuration survives reloads.
@@ -55,7 +51,6 @@ export default function Workbench() {
   const [graph, setGraph] = useState<FactGraph>(MOCK_GRAPH);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cached, setCached] = useState(false);
   const [runId, setRunId] = useState(0);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
@@ -70,8 +65,6 @@ export default function Workbench() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const summarizedRunIdRef = useRef(0);
-  // Tracks the in-flight live run so it can be aborted/superseded if needed.
-  const abortRef = useRef<AbortController | null>(null);
 
   // Hydrate settings from localStorage after mount (avoids SSR/client mismatch),
   // then persist on every change. The post-mount setState is deliberate: reading
@@ -147,27 +140,11 @@ export default function Workbench() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, runId, graph.source.verdict]);
 
-  // Replay a captured run as a simulated stream — used by the automatic wifi-death
-  // fallback when a live run fails. The caller owns loading / runId.
-  async function replayCached(trimmed: string, fallback: FactGraph) {
-    setCached(true);
-    setGraph(emptyGraph(trimmed));
-    for (const { event, delay } of graphToEvents(fallback)) {
-      await sleep(delay);
-      if (event.type !== "error" && event.type !== "done") {
-        setGraph((g) => applyEvent(g, event));
-      }
-    }
-  }
-
   async function check(source: string) {
     const trimmed = source.trim();
     if (!trimmed || loading) return;
-    const controller = new AbortController();
-    abortRef.current = controller;
     setLoading(true);
     setError(null);
-    setCached(false);
     // On mobile, hand the small screen to the evidence graph the moment a run starts — the
     // input zone has done its job (#6). Desktop keeps it open (the collapse is md:-inert anyway).
     if (isMobile) setInputOpen(false);
@@ -180,7 +157,6 @@ export default function Workbench() {
       const res = await fetch("/api/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
         body: JSON.stringify({ text: trimmed, config: runConfig() }),
       });
       if (!res.ok || !res.body) {
@@ -205,20 +181,9 @@ export default function Workbench() {
         }
       }
     } catch (err) {
-      // Superseded by a manual "Cached" press — that handler now owns the UI.
-      if (controller.signal.aborted) return;
-      // Wifi-death fallback: if this exact source has a cached run, replay it as a
-      // simulated stream so the demo still works offline (PLAN.md top risk).
-      const fallback = DEMO_CACHE[trimmed];
-      if (fallback) {
-        await replayCached(trimmed, fallback);
-      } else {
-        setError(err instanceof Error ? err.message : "Something went wrong");
-      }
+      setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
-      if (abortRef.current === controller) abortRef.current = null;
-      // When aborted, the manual handler controls loading — don't clear it here.
-      if (!controller.signal.aborted) setLoading(false);
+      setLoading(false);
     }
   }
 
@@ -355,20 +320,6 @@ export default function Workbench() {
           >
             ▣ Brief
           </button>
-        )}
-        {cached && (
-          <div className="pointer-events-none absolute right-4 top-4 z-10">
-            <span
-              className="rounded-full border px-3 py-1 font-mono text-[9.5px] uppercase tracking-[0.16em]"
-              style={{
-                borderColor: "var(--line-2)",
-                background: "rgba(11,14,21,0.9)",
-                color: "var(--ink-3)",
-              }}
-            >
-              ↺ cached replay · offline
-            </span>
-          </div>
         )}
         {loading && (
           <div className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2">
