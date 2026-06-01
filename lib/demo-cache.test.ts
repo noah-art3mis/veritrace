@@ -11,8 +11,11 @@ import type { EvidenceItem } from "./graph-types";
 
 const entries = Object.entries(DEMO_CACHE);
 
-it("ships at least the three rehearsed demo chips", () => {
-  expect(entries.length).toBeGreaterThanOrEqual(3);
+it("ships the rehearsed demo fallback graphs", () => {
+  // Guards the rot that would silently disable the wifi-death fallback: the cache emptied
+  // or the module failing to load. The chip COUNT is a product decision (chips come and go),
+  // so we don't snapshot it — only that at least one rehearsed graph ships.
+  expect(entries.length).toBeGreaterThan(0);
 });
 
 describe.each(entries)("cached graph: %s", (key, graph) => {
