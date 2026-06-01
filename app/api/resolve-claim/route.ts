@@ -1,5 +1,5 @@
 import { createReasoner } from "@/lib/reasoner";
-import { createExaSearch } from "@/lib/exa";
+import { createSearchProvider } from "@/lib/search";
 import { parseConfig } from "@/lib/run-config";
 import { generateQuestions } from "@/lib/pipeline/questions";
 import { resolveQuestion, rationaleFor } from "@/lib/pipeline/resolve";
@@ -63,14 +63,14 @@ export async function POST(request: Request) {
     const config = parseConfig(body.config);
     deps = {
       ask: createReasoner(config),
-      search: createExaSearch({
+      search: createSearchProvider({
         exaKey: config.exaKey,
         numResults: config.maxSources,
         maxChars: config.maxChars,
         deepSearch: config.deepSearch,
         category: config.category,
         preferFresh: config.preferFresh,
-      }),
+      }).search,
       maxClaims: config.maxClaims,
       maxQuestions: config.maxQuestions,
     };
