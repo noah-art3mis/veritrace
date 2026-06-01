@@ -2,7 +2,16 @@ import { createContext, memo, useContext } from "react";
 import { Handle, Position, type NodeProps, type NodeTypes } from "@xyflow/react";
 import type { SourceNode, ClaimNode, QuestionNode, EvidenceNode } from "@/lib/graph-to-flow";
 import { VERDICT_META, STANCE_META, RELIABILITY_META } from "@/lib/visuals";
-import type { Verdict, Reliability, ClaimTally, QuestionTrace } from "@/lib/graph-types";
+import type {
+  Verdict,
+  Reliability,
+  ClaimTally,
+  QuestionTrace,
+  SourceTextItem,
+  ClaimItem,
+  QuestionItem,
+  EvidenceItem,
+} from "@/lib/graph-types";
 import { isRelevanceDropped } from "@/lib/pipeline/claim-status";
 
 /**
@@ -186,9 +195,16 @@ function QuestionTraceBlock({ trace }: { trace: QuestionTrace }) {
   );
 }
 
-/* The artifact under examination — the human-authored viral post, set in serif. */
-function SourceNodeCard({ data }: NodeProps<SourceNode>) {
-  const { item } = data;
+/* The artifact under examination — the human-authored viral post, set in serif. `withHandles`
+   is false when the card is rendered outside a React Flow node (the radial detail panel, #48),
+   where <Handle>s have no node context and would misbehave. */
+export function SourceCard({
+  item,
+  withHandles = true,
+}: {
+  item: SourceTextItem;
+  withHandles?: boolean;
+}) {
   const withhold = useContext(WithholdVerdictContext);
   // While analyzing (verdict still null) the badge is just a progress pulse, not a verdict, so
   // keep showing it even when withholding — only a resolved verdict is the "pre-chewed" answer.
@@ -214,14 +230,23 @@ function SourceNodeCard({ data }: NodeProps<SourceNode>) {
       </div>
       <p className="font-display px-1 text-[15px] leading-[1.5] text-[var(--ink-1)]">{item.text}</p>
       {!hideVerdict && item.tally && <SupportRatio tally={item.tally} />}
-      {OUT}
+      {withHandles && OUT}
     </div>
   );
 }
 
+function SourceNodeCard({ data }: NodeProps<SourceNode>) {
+  return <SourceCard item={data.item} />;
+}
+
 /* A machine-extracted, decontextualized assertion — body sans; verdict in serif. */
-function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
-  const { item } = data;
+export function ClaimCard({
+  item,
+  withHandles = true,
+}: {
+  item: ClaimItem;
+  withHandles?: boolean;
+}) {
   const internals = useContext(InternalsContext);
   const dropped = isRelevanceDropped(item);
   const m = item.verdict ? VERDICT_META[item.verdict] : null;
@@ -246,7 +271,7 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
           style={{ background: accent }}
         />
       )}
-      {IN}
+      {withHandles && IN}
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="flex items-center gap-2">
           <Kicker>Claim · {item.id.toUpperCase()}</Kicker>
@@ -307,14 +332,23 @@ function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
           ⚠ added detail: {item.injected.join(", ")}
         </p>
       )}
-      {OUT}
+      {withHandles && OUT}
     </div>
   );
 }
 
+function ClaimNodeCard({ data }: NodeProps<ClaimNode>) {
+  return <ClaimCard item={data.item} />;
+}
+
 /* The machine's probe — mono, phosphor cyan; shimmer sweep while Exa runs. */
-function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
-  const { item } = data;
+export function QuestionCard({
+  item,
+  withHandles = true,
+}: {
+  item: QuestionItem;
+  withHandles?: boolean;
+}) {
   const internals = useContext(InternalsContext);
   const searching = item.status === "searching";
   return (
@@ -333,7 +367,7 @@ function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
         className="absolute bottom-2.5 left-0 top-2.5 w-[3px] rounded-full"
         style={{ background: searching ? "var(--accent)" : "var(--ink-4)" }}
       />
-      {IN}
+      {withHandles && IN}
       <div className="relative mb-1.5 flex items-center gap-2">
         <span
           className="font-mono text-[9px] uppercase tracking-[0.2em]"
@@ -355,14 +389,23 @@ function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
         {item.text}
       </p>
       {internals && item.trace && <QuestionTraceBlock trace={item.trace} />}
-      {OUT}
+      {withHandles && OUT}
     </div>
   );
 }
 
+function QuestionNodeCard({ data }: NodeProps<QuestionNode>) {
+  return <QuestionCard item={data.item} />;
+}
+
 /* A filed primary source — passage in serif (the quote), metadata in mono. */
-function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
-  const { item } = data;
+export function EvidenceCard({
+  item,
+  withHandles = true,
+}: {
+  item: EvidenceItem;
+  withHandles?: boolean;
+}) {
   const internals = useContext(InternalsContext);
   const stance = STANCE_META[item.stance];
   return (
@@ -379,13 +422,17 @@ function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
         className="absolute bottom-3 left-0 top-3 w-[3px] rounded-full"
         style={{ background: stance.color }}
       />
-      {IN}
-      {/* When a question's evidence wraps into a grid, each card feeds its right neighbour
-          (the "comb" layout in graph-to-flow), so the right handle is a flow source. */}
-      <Handle type="source" id="flow-out" position={Position.Right} style={handleStyle} />
-      {/* Same-rank conflict overlay attaches here, not to the left/right flow handles. */}
-      <Handle type="source" id="conflict-out" position={Position.Top} style={handleStyle} />
-      <Handle type="target" id="conflict-in" position={Position.Bottom} style={handleStyle} />
+      {withHandles && (
+        <>
+          {IN}
+          {/* When a question's evidence wraps into a grid, each card feeds its right neighbour
+              (the "comb" layout in graph-to-flow), so the right handle is a flow source. */}
+          <Handle type="source" id="flow-out" position={Position.Right} style={handleStyle} />
+          {/* Same-rank conflict overlay attaches here, not to the left/right flow handles. */}
+          <Handle type="source" id="conflict-out" position={Position.Top} style={handleStyle} />
+          <Handle type="target" id="conflict-in" position={Position.Bottom} style={handleStyle} />
+        </>
+      )}
       <div className="mb-1.5 flex items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -436,6 +483,10 @@ function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
       </div>
     </div>
   );
+}
+
+function EvidenceNodeCard({ data }: NodeProps<EvidenceNode>) {
+  return <EvidenceCard item={data.item} />;
 }
 
 // Memoized so a stable node object (see useGraphFlow) skips re-rendering entirely. Cards still
