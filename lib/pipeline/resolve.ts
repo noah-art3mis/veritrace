@@ -30,7 +30,7 @@ export function dateWindow(date?: string): SearchOptions | undefined {
 // How many model↔search round-trips the gather loop may take before we stop and judge what
 // we have. The model is told to keep searching until it has MIN_DECIDING reliable sources
 // including one primary; this is the hard backstop on that model-driven loop.
-const MAX_SEARCHES = 4;
+const MAX_SEARCHES = 10;
 const MIN_DECIDING = 2;
 
 // The gather agent can emit several searches per turn, so the deduped pile behind one
