@@ -333,7 +333,8 @@ describe("resolveQuestion (agentic gather loop)", () => {
       ["q1", "q2"],
     );
     const out = await resolveQuestion(claim(), question, d);
-    expect(out.trace.hydePassage).toBe("A neutral hypothetical report.");
+    // expandQuery now labels the directional anchor(s); the passage text is still carried through.
+    expect(out.trace.hydePassage).toContain("A neutral hypothetical report.");
     expect(out.trace.searchQueries).toEqual(["q1", "q2"]);
     expect(out.trace.gatherSummary).toBe("done");
   });
