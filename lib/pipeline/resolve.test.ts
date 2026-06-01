@@ -330,8 +330,9 @@ describe("resolveQuestion (agentic gather loop)", () => {
     );
 
     const out = await resolveQuestion(claim(), question, d);
-    expect(search).toHaveBeenCalledTimes(2);
-    // 4 raw results (b.com twice) collapse to 3 unique evidence items.
+    // 2 RRF directional seed searches (question + 1 anchor) + the model's 2 follow-ups (#56).
+    expect(search).toHaveBeenCalledTimes(4);
+    // Results across all queries collapse to 3 unique evidence items (deduped by url).
     expect(out.evidence.map((e) => e.domain).sort()).toEqual(["a.com", "b.com", "c.com"]);
   });
 
@@ -344,8 +345,9 @@ describe("resolveQuestion (agentic gather loop)", () => {
     const d = deps({ search }, ["q1", "q2"]);
     const out = await resolveQuestion(claim(), question, d);
     expect(out.evidence).toEqual([]);
-    expect(search).toHaveBeenCalledTimes(2); // both queries attempted; the first failure didn't abort
-    expect(out.trace.searchQueries).toEqual(["q1", "q2"]);
+    // Seed searches AND the model's follow-ups are all attempted; no failure aborts the loop.
+    expect(search).toHaveBeenCalledTimes(4);
+    expect(out.trace.searchQueries).toEqual(expect.arrayContaining(["q1", "q2"]));
   });
 
   it("returns a trace: HyDE hypothetical, the executed queries, and the gather summary", async () => {
@@ -362,7 +364,8 @@ describe("resolveQuestion (agentic gather loop)", () => {
     const out = await resolveQuestion(claim(), question, d);
     // expandQuery now labels the directional anchor(s); the passage text is still carried through.
     expect(out.trace.hydePassage).toContain("A neutral hypothetical report.");
-    expect(out.trace.searchQueries).toEqual(["q1", "q2"]);
+    // searchQueries now records the RRF seed queries (question + anchors) plus the model's queries.
+    expect(out.trace.searchQueries).toEqual(expect.arrayContaining(["q1", "q2"]));
     expect(out.trace.gatherSummary).toBe("done");
   });
 });

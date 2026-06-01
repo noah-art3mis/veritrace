@@ -4,6 +4,7 @@ import type { ToolDef } from "../anthropic";
 import type { PipelineDeps } from "./deps";
 import { classifyEvidence } from "./classify";
 import { expandQuery } from "./expand";
+import { reciprocalRankFusion } from "./rrf";
 import { isDeciding } from "./verdict";
 
 // Days of slack around a claim's event date for the retrieval window. The lower bound cuts
@@ -109,10 +110,25 @@ export async function resolveQuestion(
     }
   }
 
-  // Seed with a HyDE-expanded query (HerO/HyDE retrieval); the model issues follow-ups.
-  const { seed, hypothetical } = await expandQuery(claim, question, deps.ask);
+  // RRF directional seed (#56, ADR 0008): issue one Exa query per directional hypothetical (plus
+  // the bare question), then fuse the rankings with Reciprocal Rank Fusion — the live-search-API
+  // analogue of HyDE/HerO's embedding-averaging (we fuse rankings, not vectors, so no embeddings).
+  // A source ranked well across directions floats up; a one-query fluke washes out. The model then
+  // drives follow-up searches over the same deduped pool.
+  const { seed, hypothetical, anchors } = await expandQuery(claim, question, deps.ask);
+  const seedQueries = [question.text, ...anchors];
+  const seedRankings = await Promise.all(
+    seedQueries.map((q) => {
+      searchQueries.push(q);
+      return deps
+        .search(q, { ...window, highlightQuery: question.text })
+        .catch(() => [] as RawEvidence[]);
+    }),
+  );
+  for (const r of reciprocalRankFusion(seedRankings, (e) => e.url)) collected.set(r.url, r);
+
   const result = await deps.ask.askWithTools(
-    `Claim: "${claim.text}"\nQuestion: "${question.text}"\n\nA strong first query to run:\n${seed}\n\nGather the evidence that resolves this question.`,
+    `Claim: "${claim.text}"\nQuestion: "${question.text}"\n\nA strong first query to run:\n${seed}\n\n${collected.size} source(s) were already retrieved by directional queries; search for MORE — especially a primary/originating source and the opposing stance.`,
     { system: GATHER_SYSTEM, tools: [SEARCH_TOOL], onTool, maxSteps: MAX_SEARCHES, maxTokens: 600 },
   );
 
