@@ -90,7 +90,7 @@ describe("createOpenAICompatible", () => {
     const out = await createOpenAICompatible(baseConfig).askText("the question", { system: "sys" });
     expect(out).toBe("the answer");
     const body = createMock.mock.calls[0][0];
-    expect(body.model).toBe("gemini-2.5-flash");
+    expect(body.model).toBe("gemini-2.5-flash-lite");
     expect(body.messages).toEqual([
       { role: "system", content: "sys" },
       { role: "user", content: "the question" },
