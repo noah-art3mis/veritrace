@@ -73,26 +73,49 @@ The corpora aren't redistributed in this repo (license + size). Download them yo
 convert. [`convert.mjs`](./convert.mjs) is dependency-free — plain `node`, no install:
 
 ```bash
-# 1. Download (accept each corpus's license first):
-#    AVeriTeC → https://fever.ai/dataset/averitec.html   (dev split is labelled; test is not)
-#    X-Fact   → https://github.com/utahnlp/x-fact         (data/*.tsv)
 mkdir -p evals/golden/raw
 
-# 2. Snopes + Full Fact golds from AVeriTeC (filter by article host):
+# 1. AVeriTeC — the labelled split lives on HuggingFace (the fever.ai page just links there).
+#    dev.json is labelled (500 claims); test.json is the blind/unlabelled split → skipped on import.
+curl -L -o evals/golden/raw/averitec_dev.json \
+  https://huggingface.co/chenxwh/AVeriTeC/resolve/main/data/dev.json
+
+# 2. Golds by org. NB: the public dev split is ~35 orgs and contains NO Snopes; the big
+#    English buckets are PolitiFact (58) and Full Fact (12). Drop --site to take all 500.
 node evals/golden/convert.mjs averitec evals/golden/raw/averitec_dev.json --split dev \
-  --site snopes.com  --out evals/golden/snopes.jsonl
+  --site politifact  --out evals/golden/politifact.jsonl
 node evals/golden/convert.mjs averitec evals/golden/raw/averitec_dev.json --split dev \
   --site fullfact.org --out evals/golden/fullfact.jsonl
 
-# 3. Aos Fatos golds from X-Fact (Portuguese):
-node evals/golden/convert.mjs xfact evals/golden/raw/x-fact/dev.tsv --lang pt \
+# 3. Aos Fatos golds from X-Fact (Portuguese). Files live on HuggingFace
+#    (datasets/utahnlp/x-fact) and are named *.all.tsv — the dev split is dev.all.tsv.
+node evals/golden/convert.mjs xfact evals/golden/raw/x-fact/dev.all.tsv --lang pt \
   --site aosfatos --out evals/golden/aosfatos.jsonl
-
-# (drop --site on the AVeriTeC commands to take all ~50 orgs)
 ```
 
+> **Wayback-wrapped URLs.** Every `fact_checking_article` in the AVeriTeC dev split is a
+> `web.archive.org/web/<ts>/<real-url>` snapshot. `convert.mjs` peels that wrapper
+> (`unwrapArchive`) before deriving the org — otherwise every record's org would be
+> `web.archive.org` and the `--site` filters would never match. `source.url` stores the
+> unwrapped canonical article URL.
+
 Counts are reported on stderr. Generated `*.jsonl` is git-ignored except `smoke.jsonl` — keep
-a small hand-checked subset under version control for CI; regenerate the rest on demand.
+a small subset under version control for CI; regenerate the rest on demand.
+
+### The committed `smoke.jsonl`
+
+The one gold file in git: a 12-record, verdict-balanced subset (3 each of
+supported/refuted/conflicting/nei) drawn deterministically from the AVeriTeC dev split — the
+always-run CI fixture. Records carry AVeriTeC's own human adjudication (we did not
+re-adjudicate them), keep `source.url` for attribution, and are validated on load by
+[`loadGolden`](./load.mjs) (rejects bad verdicts, empty claims, duplicate ids). Regenerate
+after a `convert.mjs` change:
+
+```bash
+node evals/golden/convert.mjs averitec evals/golden/raw/averitec_dev.json --split smoke \
+  --out /tmp/smoke_all.jsonl
+# then pick the first 3 readable, org-resolved records per verdict → evals/golden/smoke.jsonl
+```
 
 ## Two things to get right before trusting the numbers
 
@@ -114,7 +137,9 @@ a small hand-checked subset under version control for CI; regenerate the rest on
 evals/golden/
   schema.ts        GoldenClaim type (the contract); reuses Verdict from lib/graph-types
   convert.mjs      AVeriTeC + X-Fact → GoldenClaim importers + CLI (dependency-free)
-  convert.test.ts  label-mapping / evidence-flattening tests (npm test)
-  smoke.jsonl      tiny hand-checked CI subset (the only generated file we commit)
+  convert.test.ts  label-mapping / evidence-flattening / Wayback-unwrap tests (npm test)
+  load.mjs         loadGolden/parseGolden — read + validate GoldenClaim JSONL (the harness gate)
+  load.test.ts     loader rejection tests + a smoke.jsonl integrity check (npm test)
+  smoke.jsonl      12-record verdict-balanced CI subset (the only gold file we commit)
   raw/             downloaded corpora (git-ignored)
 ```

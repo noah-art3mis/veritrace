@@ -15,6 +15,14 @@ export interface PipelineDeps {
   /** Legibility cap on resolving questions per claim (from RunConfig.maxQuestions). */
   maxQuestions: number;
   /**
+   * Optional reference "as-of" date (ISO YYYY-MM-DD) — the date the source was written /
+   * the claim was made. When set, triage anchors date inference to it instead of the wall
+   * clock and backfills it onto any claim whose own date the model can't infer, so retrieval
+   * is windowed to the claim's era rather than today. The app leaves this unset (a pasted
+   * claim is "as of now"); evals set it to the gold's claimDate to prevent temporal leakage.
+   */
+  asOf?: string;
+  /**
    * Optional fact-check short-circuit. Present only when RunConfig.factCheckShortCircuit is
    * on (and a key is available); ABSENT is the off switch — the pipeline then runs fully de
    * novo. Given a claim, returns any existing fact-checks of it (empty = none / lookup failed).
