@@ -11,6 +11,14 @@ import { parseConfig } from "@/lib/run-config";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+// A question's retrieved evidence is emitted as individual events, but they otherwise flush in
+// one tight burst the moment the question resolves — so the graph lurches in blocks. Pace just
+// the evidence events apart by a small delay so the live build reads as a calm one-at-a-time
+// drip (#9), which also turns the radial view's per-burst reflow into a series of small tweens.
+// Only evidence events are staggered; every other event passes through immediately.
+const EVIDENCE_STAGGER_MS = 80;
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 export async function POST(request: Request) {
   let body: { text?: unknown; config?: unknown };
   try {
@@ -62,7 +70,10 @@ export async function POST(request: Request) {
     async start(controller) {
       const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
       try {
-        for await (const event of streamPipeline(source, deps)) send(event);
+        for await (const event of streamPipeline(source, deps)) {
+          send(event);
+          if (event.type === "evidence") await sleep(EVIDENCE_STAGGER_MS);
+        }
       } catch (err) {
         console.error("[/api/check]", err);
         send({ type: "error", message: err instanceof Error ? err.message : "Pipeline failed" });

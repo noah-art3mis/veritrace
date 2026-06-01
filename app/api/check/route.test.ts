@@ -132,6 +132,35 @@ describe("POST /api/check streaming", () => {
     );
   });
 
+  it("staggers evidence events but preserves every event and its order", async () => {
+    // The route paces evidence apart for a calm one-at-a-time live build (#9). Staggering must
+    // not drop or reorder anything — all events arrive, in the order the pipeline yielded them.
+    streamPipeline.mockImplementation(async function* () {
+      yield { type: "source", source: { id: "src", text: "hi", verdict: null } };
+      yield { type: "evidence", evidence: { id: "e1" } };
+      yield { type: "evidence", evidence: { id: "e2" } };
+      yield { type: "evidence", evidence: { id: "e3" } };
+      yield { type: "claim_verdict", id: "c1", verdict: "supported", rationale: "r" };
+      yield { type: "done" };
+    });
+
+    const res = await POST(post(JSON.stringify({ text: "hi" })));
+    const events = await ndjson(res);
+    expect(events.map((e) => e.type)).toEqual([
+      "source",
+      "evidence",
+      "evidence",
+      "evidence",
+      "claim_verdict",
+      "done",
+    ]);
+    expect(events.filter((e) => e.type === "evidence").map((e) => e.evidence.id)).toEqual([
+      "e1",
+      "e2",
+      "e3",
+    ]);
+  });
+
   it("converts a mid-stream pipeline failure into a terminal error event, not a crash", async () => {
     streamPipeline.mockImplementation(async function* () {
       yield { type: "source", source: { id: "src", text: "hi", verdict: null } };
