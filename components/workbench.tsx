@@ -97,8 +97,10 @@ export default function Workbench() {
       deepSearch: settings.deepSearch,
       category: settings.category,
       preferFresh: settings.preferFresh,
+      factCheckShortCircuit: settings.factCheckShortCircuit,
       anthropicKey: settings.anthropicKey || undefined,
       exaKey: settings.exaKey || undefined,
+      googleFactCheckKey: settings.googleFactCheckKey || undefined,
     };
   }
 
