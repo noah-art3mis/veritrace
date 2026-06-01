@@ -10,3 +10,7 @@ NOTES/
 package-lock.json
 next-env.d.ts
 *.png
+
+# Locally-downloaded academic corpora (git-ignored, never in CI) — keeps local
+# `prettier --check .` matching CI, which never sees these files.
+evals/golden/raw/
