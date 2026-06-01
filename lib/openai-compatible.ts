@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import type { RunConfig } from "./run-config";
-import { parseJSON } from "./parse-json";
+import { askJSONWithRepair, type JSONOpts } from "./ask-json";
 import type { AskOpts, ReasoningProvider, ToolLoopOpts, ToolLoopResult } from "./anthropic";
 
 // OpenAI-compatible reasoning provider (ADR 0004). One adapter for every backend that speaks the
@@ -49,8 +49,8 @@ export function createOpenAICompatible(config: RunConfig): ReasoningProvider {
     return resp.choices[0]?.message?.content ?? "";
   }
 
-  async function askJSON<T>(prompt: string, opts: AskOpts = {}): Promise<T> {
-    return parseJSON<T>(await askText(prompt, opts));
+  async function askJSON<T>(prompt: string, opts: JSONOpts = {}): Promise<T> {
+    return askJSONWithRepair<T>(askText, prompt, opts);
   }
 
   async function askWithTools(prompt: string, opts: ToolLoopOpts): Promise<ToolLoopResult> {
