@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { RunConfig } from "./run-config";
+import { REASONING_TOKEN_RESERVE, type RunConfig } from "./run-config";
 import type { ToolDef } from "./anthropic";
 
 const createMock = vi.fn();
@@ -35,6 +35,14 @@ const TARGET = {
   baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
   apiKey: "gem-key",
   model: "gemini-2.5-flash-lite",
+};
+
+const deepseekConfig: RunConfig = { ...baseConfig, model: "deepseek-v4-flash", temperature: 0.5 };
+
+const DEEPSEEK_TARGET = {
+  baseURL: "https://api.deepseek.com",
+  apiKey: "ds-key",
+  model: "deepseek-v4-flash",
 };
 
 const SEARCH_TOOL: ToolDef = {
@@ -154,5 +162,49 @@ describe("createOpenAICompatible", () => {
     });
     expect(result.steps).toBe(2);
     expect(onTool).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("createOpenAICompatible with a reasoning model (DeepSeek)", () => {
+  // DeepSeek V4 reasons by default and the reasoning_tokens count against max_tokens, so the answer
+  // budget must carry a reserve on top — mirroring the Anthropic thinking path (anthropic.ts).
+
+  it("askText reserves reasoning tokens on top of the answer budget and asks for high effort", async () => {
+    createMock.mockResolvedValue(textResp("hi"));
+    await createOpenAICompatible(deepseekConfig, DEEPSEEK_TARGET).askText("q", { maxTokens: 300 });
+    const body = createMock.mock.calls[0][0];
+    expect(body.max_tokens).toBe(300 + REASONING_TOKEN_RESERVE);
+    expect(body.reasoning_effort).toBe("high");
+  });
+
+  it("omits temperature for a reasoning model even when the config carries one", async () => {
+    createMock.mockResolvedValue(textResp("hi"));
+    await createOpenAICompatible(deepseekConfig, DEEPSEEK_TARGET).askText("q");
+    const body = createMock.mock.calls[0][0];
+    expect(body).not.toHaveProperty("temperature");
+  });
+
+  it("applies the reserve and effort on the tool-calling loop too", async () => {
+    createMock.mockResolvedValue(textResp("done"));
+    await createOpenAICompatible(deepseekConfig, DEEPSEEK_TARGET).askWithTools("go", {
+      tools: [SEARCH_TOOL],
+      onTool: vi.fn(),
+      maxSteps: 1,
+      maxTokens: 600,
+    });
+    const body = createMock.mock.calls[0][0];
+    expect(body.max_tokens).toBe(600 + REASONING_TOKEN_RESERVE);
+    expect(body.reasoning_effort).toBe("high");
+  });
+
+  it("leaves a non-reasoning model unchanged: no reserve, no effort, temperature sent", async () => {
+    createMock.mockResolvedValue(textResp("hi"));
+    await createOpenAICompatible({ ...baseConfig, temperature: 0.5 }, TARGET).askText("q", {
+      maxTokens: 300,
+    });
+    const body = createMock.mock.calls[0][0];
+    expect(body.max_tokens).toBe(300);
+    expect(body.reasoning_effort).toBeUndefined();
+    expect(body.temperature).toBe(0.5);
   });
 });
