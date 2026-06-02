@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { graphToFlow, conflictEdges } from "./graph-to-flow";
 import type { FactGraph, EvidenceItem } from "./graph-types";
-import { STANCE_META } from "./visuals";
+import { STANCE_META, VERDICT_META } from "./visuals";
 
 function graph(): FactGraph {
   return {
@@ -110,6 +110,71 @@ describe("graphToFlow edges", () => {
     const { edges } = graphToFlow(graph());
     expect(edges.find((e) => e.target === "c1-q1-e1")!.animated).toBe(true);
     expect(edges.find((e) => e.target === "c1")!.animated).toBe(false);
+  });
+});
+
+describe("support colour propagates back to the claim", () => {
+  // An unresolved claim (no verdict yet) whose only question carries one deciding source with
+  // the given stance. Structural source→claim and claim→question edges should take that source's
+  // support colour even before a verdict lands, instead of staying neutral.
+  function unresolvedGraph(stance: EvidenceItem["stance"]): FactGraph {
+    return {
+      source: { id: "src", text: "post", verdict: null },
+      claims: [{ id: "c1", text: "c1", checkable: true, verdict: null }],
+      questions: [{ id: "c1-q1", claimId: "c1", text: "q?", status: "answered" }],
+      evidence: [
+        {
+          id: "c1-q1-e1",
+          questionId: "c1-q1",
+          title: "t",
+          url: "https://bbc.com/x",
+          domain: "bbc.com",
+          passage: "p",
+          stance,
+          reliability: "high",
+          sourceType: "primary",
+          stanceConfidence: 0.9,
+        },
+      ],
+    };
+  }
+
+  it("colours source→claim and claim→question by the deciding support stance", () => {
+    const { edges } = graphToFlow(unresolvedGraph("supports"));
+    const srcToClaim = edges.find((e) => e.source === "src" && e.target === "c1")!;
+    const claimToQ = edges.find((e) => e.source === "c1" && e.target === "c1-q1")!;
+    expect(srcToClaim.style?.stroke).toBe(STANCE_META.supports.color);
+    expect(claimToQ.style?.stroke).toBe(STANCE_META.supports.color);
+  });
+
+  it("colours the upstream edges conflicting when a claim's deciding sources disagree", () => {
+    const g = unresolvedGraph("supports");
+    g.questions.push({ id: "c1-q2", claimId: "c1", text: "q2?", status: "answered" });
+    g.evidence.push({
+      id: "c1-q2-e1",
+      questionId: "c1-q2",
+      title: "t",
+      url: "https://reuters.com/x",
+      domain: "reuters.com",
+      passage: "p",
+      stance: "refutes",
+      reliability: "high",
+      sourceType: "primary",
+      stanceConfidence: 0.9,
+    });
+    const { edges } = graphToFlow(g);
+    expect(edges.find((e) => e.source === "src" && e.target === "c1")!.style?.stroke).toBe(
+      VERDICT_META.conflicting.color,
+    );
+  });
+
+  it("leaves the upstream edges neutral when no source can decide", () => {
+    // A single low-reliability source can't decide, so nothing veracity-coloured propagates.
+    const g = unresolvedGraph("supports");
+    g.evidence[0].reliability = "low";
+    const { edges } = graphToFlow(g);
+    const srcToClaim = edges.find((e) => e.source === "src" && e.target === "c1")!;
+    expect(srcToClaim.style?.stroke).not.toBe(STANCE_META.supports.color);
   });
 });
 
