@@ -139,7 +139,12 @@ export default function FactGraphCanvas({
             edgeTypes={isRadial ? radialEdgeTypes : undefined}
             fitView
             fitViewOptions={{ padding: 0.15 }}
-            minZoom={0.2}
+            // fitView can only zoom out as far as minZoom. The card view is a wide left-to-right
+            // flow (~4 ranks of 280–380px cards), so on a phone fitting its WIDTH needs a zoom well
+            // below the desktop 0.2 floor — clamped there, the graph overflows the screen (cut off)
+            // instead of fitting. Drop the floor on mobile so the whole graph frames; the user
+            // pinch-zooms back in. Desktop keeps 0.2 so a small graph can't shrink to a speckle.
+            minZoom={isMobile ? 0.05 : 0.2}
             maxZoom={1.5}
             onlyRenderVisibleElements
             nodesDraggable={!isRadial}
