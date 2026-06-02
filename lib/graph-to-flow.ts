@@ -63,13 +63,40 @@ export function buildNodes(graph: FactGraph): AppNode[] {
 // green, and amber are thus reserved for veracity; unresolved structure is the neutral slate.
 const STRUCTURAL_STROKE = "#2b3645";
 
-function claimStroke(claim: ClaimItem): string {
-  return claim.verdict ? VERDICT_META[claim.verdict].color : STRUCTURAL_STROKE;
+/**
+ * The colour the structural edges INTO and OUT OF a claim carry. Once the claim has a verdict that
+ * verdict colour wins (the authoritative resolution, #24). Before it resolves, the support colour
+ * of the deciding evidence beneath it propagates up so the source → claim → question connectors
+ * already read green/red/amber as evidence streams in, instead of sitting neutral until the verdict
+ * lands. `evidence` is the subtree under the node being coloured (a claim's whole evidence set for
+ * source→claim, one question's set for claim→question). Falls back to neutral when nothing decides.
+ */
+function claimStroke(claim: ClaimItem, evidence: EvidenceItem[]): string {
+  if (claim.verdict) return VERDICT_META[claim.verdict].color;
+  return aggregateStanceColor(evidence) ?? STRUCTURAL_STROKE;
+}
+
+/**
+ * The dominant deciding stance colour for a set of evidence, or null when nothing in it can decide.
+ * Mirrors the conflict overlay + verdict semantics (isDeciding): only high-confidence, reliable
+ * supports/refutes count, both present ⇒ conflicting (amber). This keeps the veracity hues meaning
+ * the same thing on a propagated edge as they do in the badges and the conflict chord.
+ */
+export function aggregateStanceColor(evidence: EvidenceItem[]): string | null {
+  const deciding = evidence.filter(isDeciding);
+  const supports = deciding.some((e) => e.stance === "supports");
+  const refutes = deciding.some((e) => e.stance === "refutes");
+  if (supports && refutes) return VERDICT_META.conflicting.color;
+  if (supports) return STANCE_META.supports.color;
+  if (refutes) return STANCE_META.refutes.color;
+  return null;
 }
 
 export function buildFlowEdges(graph: FactGraph): Edge[] {
   const edges: Edge[] = [];
   const claimById = new Map(graph.claims.map((c) => [c.id, c]));
+  const evidenceByClaim = groupEvidenceByClaim(graph);
+  const evidenceByQuestion = groupBy(graph.evidence, (e) => e.questionId);
   for (const claim of graph.claims) {
     edges.push({
       id: `e-${graph.source.id}-${claim.id}`,
@@ -77,7 +104,10 @@ export function buildFlowEdges(graph: FactGraph): Edge[] {
       target: claim.id,
       type: "smoothstep",
       animated: false,
-      style: { stroke: claimStroke(claim), strokeWidth: 1.5 },
+      style: {
+        stroke: claimStroke(claim, evidenceByClaim.get(claim.id) ?? []),
+        strokeWidth: 1.5,
+      },
     });
   }
   for (const q of graph.questions) {
@@ -88,7 +118,9 @@ export function buildFlowEdges(graph: FactGraph): Edge[] {
       target: q.id,
       type: "smoothstep",
       style: {
-        stroke: claim ? claimStroke(claim) : STRUCTURAL_STROKE,
+        stroke: claim
+          ? claimStroke(claim, evidenceByQuestion.get(q.id) ?? [])
+          : STRUCTURAL_STROKE,
         strokeWidth: 1.5,
         strokeDasharray: "4 3",
       },
@@ -125,6 +157,26 @@ export function graphToFlow(graph: FactGraph): { nodes: AppNode[]; edges: Edge[]
     nodes: nodes.map((n) => positionNode(n, positions.get(n.id))),
     edges: [...flowEdges, ...conflictEdges(graph)],
   };
+}
+
+/** Bucket items by a derived key, preserving insertion order within each bucket. */
+function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const bucket = map.get(key(item)) ?? [];
+    bucket.push(item);
+    map.set(key(item), bucket);
+  }
+  return map;
+}
+
+/** All evidence under each claim, resolved through its questions (claimId → evidence[]). */
+function groupEvidenceByClaim(graph: FactGraph): Map<string, EvidenceItem[]> {
+  const claimOfQuestion = new Map(graph.questions.map((q) => [q.id, q.claimId]));
+  return groupBy(
+    graph.evidence.filter((e) => claimOfQuestion.has(e.questionId)),
+    (e) => claimOfQuestion.get(e.questionId)!,
+  );
 }
 
 /** Evidence grouped by question and chunked into the same rows the grid layout draws. */
