@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import {
   isReasoningModel,
+  modelInfo,
   REASONING_TOKEN_RESERVE,
   supportsTemperature,
   type RunConfig,
@@ -37,9 +38,19 @@ export function createOpenAICompatible(
   // on top of the caller's answer budget (mirrors anthropic.ts) and ask for high effort, so a tight
   // per-stage budget can't be entirely consumed by reasoning (which leaves content === "").
   const reasoning = isReasoningModel(config.model);
-  const reasoningParams = reasoning ? ({ reasoning_effort: "high" } as const) : {};
   const outputBudget = (answerTokens: number) =>
     reasoning ? answerTokens + REASONING_TOKEN_RESERVE : answerTokens;
+
+  // reasoning_effort policy. "high" for a deliberate reasoning model (DeepSeek). "none" for a
+  // backend that turns thinking ON by default and bills it against max_tokens (Gemini 2.5 Flash):
+  // left on, a tight budget is spent thinking and the content returns empty (finish_reason
+  // "length"), crashing parseJSON — so we switch it off. Plain models send nothing.
+  const reasoningEffort = reasoning
+    ? "high"
+    : modelInfo(config.model).disableThinking
+      ? "none"
+      : undefined;
+  const reasoningParams = reasoningEffort ? ({ reasoning_effort: reasoningEffort } as const) : {};
 
   function buildMessages(
     prompt: string,

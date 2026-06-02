@@ -10,6 +10,18 @@ import { useEffect, useState } from "react";
 // we can recognise one; otherwise fall back to a generic line. The raw message still shows
 // verbatim below for debugging.
 function plainCause(message: string): string {
+  // Billing/credit comes first: it's the single most common reason a model key stops working, and
+  // the actionable fix (top up / switch model) is nothing like a transient failure. friendlyProviderError
+  // already normalises Anthropic 400s and OpenAI insufficient_quota into this wording upstream.
+  if (/credit|quota|billing/i.test(message)) {
+    return "The model provider rejected the request for billing reasons — no credit or quota on the key.";
+  }
+  if (/rate-?limit/i.test(message)) {
+    return "The model provider rate-limited the request — too many calls in a short window.";
+  }
+  if (/unauthorized|api key|rejected the api key/i.test(message)) {
+    return "The model provider rejected the API key for the selected model.";
+  }
   if (/could not parse json|parse json from model output/i.test(message)) {
     return "The model returned output we couldn't parse.";
   }

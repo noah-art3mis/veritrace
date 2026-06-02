@@ -19,14 +19,28 @@ function errorCode(err: unknown): string | undefined {
   return undefined;
 }
 
+function errorMessage(err: unknown): string {
+  if (typeof err === "object" && err !== null && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "";
+}
+
 const CREDIT_MESSAGE =
   "The model provider rejected the request for credit/quota reasons. Add credit or check your API key's billing, or switch to a model whose key has quota.";
+
+// Anthropic signals an exhausted balance as a 400 whose message names the credit balance — not a
+// 429 with an insufficient_quota code like OpenAI — so a status check alone misses it and the user
+// just sees a raw JSON blob. Match the wording to give the same actionable line.
+const CREDIT_WORDING = /credit balance|insufficient.?(?:funds|quota|credit)|billing|too low/i;
 
 export function friendlyProviderError(err: unknown): string {
   const status = errorStatus(err);
   const code = errorCode(err);
 
   if (code === "insufficient_quota") return CREDIT_MESSAGE;
+  if (CREDIT_WORDING.test(errorMessage(err))) return CREDIT_MESSAGE;
 
   if (status === 429) {
     return "Rate-limited by the model provider (a free tier such as Gemini's caps requests per minute). Wait a moment and retry, lower the claims/questions caps to shrink the run, or use a paid key.";
