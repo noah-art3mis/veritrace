@@ -1,5 +1,10 @@
 import OpenAI from "openai";
-import { supportsTemperature, type RunConfig } from "./run-config";
+import {
+  isReasoningModel,
+  REASONING_TOKEN_RESERVE,
+  supportsTemperature,
+  type RunConfig,
+} from "./run-config";
 import { askJSONWithRepair, type JSONOpts } from "./ask-json";
 import type { AskOpts, ReasoningProvider, ToolLoopOpts, ToolLoopResult } from "./anthropic";
 
@@ -28,6 +33,14 @@ export function createOpenAICompatible(
   // Reasoning models (gpt-5.x) reject a custom temperature; omit it for those. Gemini accepts it.
   const temperature = supportsTemperature(config.model) ? config.temperature : undefined;
 
+  // DeepSeek V4 reasons before answering and bills the reasoning against max_tokens. Add a reserve
+  // on top of the caller's answer budget (mirrors anthropic.ts) and ask for high effort, so a tight
+  // per-stage budget can't be entirely consumed by reasoning (which leaves content === "").
+  const reasoning = isReasoningModel(config.model);
+  const reasoningParams = reasoning ? ({ reasoning_effort: "high" } as const) : {};
+  const outputBudget = (answerTokens: number) =>
+    reasoning ? answerTokens + REASONING_TOKEN_RESERVE : answerTokens;
+
   function buildMessages(
     prompt: string,
     system?: string,
@@ -42,8 +55,9 @@ export function createOpenAICompatible(
     const resp = await client.chat.completions.create({
       model,
       messages: buildMessages(prompt, opts.system),
-      max_tokens: opts.maxTokens ?? 1024,
+      max_tokens: outputBudget(opts.maxTokens ?? 1024),
       ...(temperature !== undefined ? { temperature } : {}),
+      ...reasoningParams,
     });
     return resp.choices[0]?.message?.content ?? "";
   }
@@ -74,8 +88,9 @@ export function createOpenAICompatible(
         model,
         messages,
         tools,
-        max_tokens: opts.maxTokens ?? 1024,
+        max_tokens: outputBudget(opts.maxTokens ?? 1024),
         ...(temperature !== undefined ? { temperature } : {}),
+        ...reasoningParams,
       });
       const msg = resp.choices[0]?.message;
       if (!msg) break;

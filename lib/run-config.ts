@@ -23,6 +23,12 @@ export interface ModelInfo {
   outputCost: number;
   /** Reasoning models reject a custom temperature; for these the UI control is inert. */
   noTemperature?: boolean;
+  /**
+   * Model reasons before answering (DeepSeek V4), spending reasoning_tokens that count against the
+   * output budget. The OpenAI-compatible adapter adds REASONING_TOKEN_RESERVE on top of the answer
+   * budget and requests high effort so reasoning can't starve the answer.
+   */
+  reasoning?: boolean;
 }
 
 // The models we expose in the UI dropdown. The entry's `provider` (+ `baseUrl`) decides which
@@ -37,15 +43,16 @@ export const MODELS = {
   "gpt-5.4-nano": { label: "GPT-5.4 nano", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.2, outputCost: 1.25, noTemperature: true }, // prettier-ignore
   "gemini-2.5-flash": { label: "Gemini 2.5 Flash", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.3, outputCost: 2.5 }, // prettier-ignore
   "gemini-2.5-flash-lite": { label: "Gemini 2.5 Flash-Lite", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.1, outputCost: 0.4 }, // prettier-ignore
-  "deepseek-v4-flash": { label: "DeepSeek V4 Flash", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.14, outputCost: 0.28 }, // prettier-ignore
-  "deepseek-v4-pro": { label: "DeepSeek V4 Pro", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.435, outputCost: 0.87 }, // prettier-ignore
+  "deepseek-v4-flash": { label: "DeepSeek V4 Flash", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.14, outputCost: 0.28, reasoning: true, noTemperature: true }, // prettier-ignore
+  "deepseek-v4-pro": { label: "DeepSeek V4 Pro", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.435, outputCost: 0.87, reasoning: true, noTemperature: true }, // prettier-ignore
 } as const satisfies Record<string, ModelInfo>;
 
 export type ModelId = keyof typeof MODELS;
 
-// Default to the cheapest backend that has been running here — Gemini Flash-Lite — since the
-// selected model now drives the provider and Anthropic credits may be exhausted. Change freely.
-export const DEFAULT_MODEL: ModelId = "gemini-2.5-flash-lite";
+// Default to DeepSeek V4 Flash — the cheapest reasoning backend whose key is provisioned in
+// production. The selected model drives the provider (ADR 0004), so the default must point at a
+// backend the prod server actually has a key for, or every default run throws. Change freely.
+export const DEFAULT_MODEL: ModelId = "deepseek-v4-flash";
 
 /** A model's registry entry, typed as the uniform ModelInfo (not its narrow as-const literal). */
 export function modelInfo(model: ModelId): ModelInfo {
@@ -56,6 +63,18 @@ export function modelInfo(model: ModelId): ModelInfo {
 export function supportsTemperature(model: ModelId): boolean {
   return !modelInfo(model).noTemperature;
 }
+
+/** Whether the model reasons before answering — the OpenAI-compatible adapter then reserves
+ * REASONING_TOKEN_RESERVE on top of the answer budget and requests high reasoning effort. */
+export function isReasoningModel(model: ModelId): boolean {
+  return modelInfo(model).reasoning === true;
+}
+
+// Reasoning reserve for OpenAI-compatible reasoning models (DeepSeek V4). Their reasoning_tokens are
+// billed against max_tokens, so a tight answer budget gets entirely consumed by reasoning and the
+// content comes back empty (finish_reason: "length"). The adapter adds this on top of the caller's
+// answer budget — the same shape as the Anthropic THINKING_BUDGET path (anthropic.ts).
+export const REASONING_TOKEN_RESERVE = 4096;
 
 // Extended-thinking budget. The API requires budget_tokens >= 1024 and
 // max_tokens > budget_tokens; createAnthropic adds this on top of the per-call cap.
