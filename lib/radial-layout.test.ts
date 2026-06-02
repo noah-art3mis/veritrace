@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { radialLayout, buildRadialEdges, CIRCLE_DIAMETER } from "./radial-layout";
 import type { FactGraph, EvidenceItem } from "./graph-types";
+import { STANCE_META, VERDICT_META } from "./visuals";
 
 function ev(
   id: string,
@@ -97,5 +98,43 @@ describe("buildRadialEdges", () => {
     // always-on `label` prop.
     expect(stance.type).toBe("radialLabel");
     expect(stance.data).toMatchObject({ label: "refutes" });
+  });
+
+  // Same support-colour propagation as the card view (#24): before a verdict lands, the deciding
+  // stance of the evidence beneath a claim flows up the structural spokes back to the claim.
+  function unresolvedGraph(stance: EvidenceItem["stance"]): FactGraph {
+    return {
+      source: { id: "src", text: "post", verdict: null },
+      claims: [{ id: "c1", text: "c1", checkable: true, verdict: null }],
+      questions: [{ id: "c1-q1", claimId: "c1", text: "q?", status: "answered" }],
+      evidence: [ev("c1-q1-e1", "c1-q1", stance)],
+    };
+  }
+
+  it("propagates the deciding support stance up the structural spokes", () => {
+    const edges = buildRadialEdges(unresolvedGraph("supports"));
+    const srcToClaim = edges.find((e) => e.source === "src" && e.target === "c1")!;
+    const claimToQ = edges.find((e) => e.source === "c1" && e.target === "c1-q1")!;
+    expect(srcToClaim.style?.stroke).toBe(STANCE_META.supports.color);
+    expect(claimToQ.style?.stroke).toBe(STANCE_META.supports.color);
+  });
+
+  it("colours the source→claim spoke conflicting when deciding sources disagree", () => {
+    const g = unresolvedGraph("supports");
+    g.questions.push({ id: "c1-q2", claimId: "c1", text: "q2?", status: "answered" });
+    g.evidence.push(ev("c1-q2-e1", "c1-q2", "refutes"));
+    const edges = buildRadialEdges(g);
+    expect(edges.find((e) => e.source === "src" && e.target === "c1")!.style?.stroke).toBe(
+      VERDICT_META.conflicting.color,
+    );
+  });
+
+  it("keeps a spoke faint when no source can decide", () => {
+    const g = unresolvedGraph("supports");
+    g.evidence[0].reliability = "low";
+    const edges = buildRadialEdges(g);
+    expect(edges.find((e) => e.source === "src" && e.target === "c1")!.style?.stroke).not.toBe(
+      STANCE_META.supports.color,
+    );
   });
 });

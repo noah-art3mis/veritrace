@@ -1,7 +1,7 @@
 import type { Edge } from "@xyflow/react";
-import type { FactGraph } from "./graph-types";
-import { STANCE_META } from "./visuals";
-import { conflictEdges } from "./graph-to-flow";
+import type { ClaimItem, EvidenceItem, FactGraph } from "./graph-types";
+import { STANCE_META, VERDICT_META } from "./visuals";
+import { aggregateStanceColor, conflictEdges } from "./graph-to-flow";
 
 // The radial "Constellation" overview layout (ADR 0003). A deterministic radial tidy tree:
 // Source at the centre, then Claims → Questions → Evidence on concentric rings. Each Claim owns
@@ -112,14 +112,32 @@ export function radialLayout(graph: FactGraph): Map<string, RadialPosition> {
 }
 
 // --- Edges -------------------------------------------------------------------------------------
-// Structural spokes are faint (parentage is mostly carried by position); the question→evidence
-// spoke keeps its stance colour + text label (a non-colour read of stance, kept on purpose). The
-// conflict overlay rides in as interior chords — the one edge that encodes what position doesn't.
+// Structural spokes are thin (parentage is mostly carried by position) but carry the claim's colour
+// so the source support reading back-propagates along source → claim → question; they fall back to
+// the faint slate when nothing decides. The question→evidence spoke keeps its stance colour + text
+// label (a non-colour read of stance, kept on purpose). The conflict overlay rides in as interior
+// chords — the one edge that encodes what position doesn't.
 
-const FAINT = { stroke: "#2b3645", strokeWidth: 1 };
+const FAINT_STROKE = "#2b3645";
 
-function spoke(source: string, target: string): Edge {
-  return { id: `r-${source}-${target}`, source, target, type: "straight", style: FAINT };
+// Structural spokes stay thin (parentage is carried by position in the radial view) but take the
+// claim's colour, so the source support reading propagates back along source → claim → question
+// just as it does in the card view (#24): verdict colour once resolved, else the aggregate deciding
+// stance of the evidence below, else the faint slate. `evidence` is the subtree under the node the
+// spoke points at — the claim's whole set for source→claim, one question's set for claim→question.
+function structuralStroke(claim: ClaimItem | undefined, evidence: EvidenceItem[]): string {
+  if (claim?.verdict) return VERDICT_META[claim.verdict].color;
+  return aggregateStanceColor(evidence) ?? FAINT_STROKE;
+}
+
+function spoke(source: string, target: string, stroke: string): Edge {
+  return {
+    id: `r-${source}-${target}`,
+    source,
+    target,
+    type: "straight",
+    style: { stroke, strokeWidth: 1 },
+  };
 }
 
 function stanceSpoke(source: string, evId: string, stance: keyof typeof STANCE_META): Edge {
@@ -139,8 +157,36 @@ function stanceSpoke(source: string, evId: string, stance: keyof typeof STANCE_M
 /** Structural spokes + stance-labelled evidence spokes + conflict chords for the radial view. */
 export function buildRadialEdges(graph: FactGraph): Edge[] {
   const edges: Edge[] = [];
-  for (const claim of graph.claims) edges.push(spoke(graph.source.id, claim.id));
-  for (const q of graph.questions) edges.push(spoke(q.claimId, q.id));
+  const claimById = new Map(graph.claims.map((c) => [c.id, c]));
+  const claimOfQuestion = new Map(graph.questions.map((q) => [q.id, q.claimId]));
+  const evidenceByClaim = new Map<string, EvidenceItem[]>();
+  const evidenceByQuestion = new Map<string, EvidenceItem[]>();
+  const push = (map: Map<string, EvidenceItem[]>, key: string, ev: EvidenceItem) => {
+    const bucket = map.get(key) ?? [];
+    bucket.push(ev);
+    map.set(key, bucket);
+  };
+  for (const ev of graph.evidence) {
+    push(evidenceByQuestion, ev.questionId, ev);
+    const claimId = claimOfQuestion.get(ev.questionId);
+    if (claimId) push(evidenceByClaim, claimId, ev);
+  }
+  for (const claim of graph.claims)
+    edges.push(
+      spoke(
+        graph.source.id,
+        claim.id,
+        structuralStroke(claim, evidenceByClaim.get(claim.id) ?? []),
+      ),
+    );
+  for (const q of graph.questions)
+    edges.push(
+      spoke(
+        q.claimId,
+        q.id,
+        structuralStroke(claimById.get(q.claimId), evidenceByQuestion.get(q.id) ?? []),
+      ),
+    );
   for (const ev of graph.evidence) edges.push(stanceSpoke(ev.questionId, ev.id, ev.stance));
   // Reuse the card view's conflict computation, but drop the card-specific handles (circles route
   // edges centre-to-centre) so the chord cuts straight across the interior. Route it through the
