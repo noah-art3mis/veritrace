@@ -118,9 +118,7 @@ export function buildFlowEdges(graph: FactGraph): Edge[] {
       target: q.id,
       type: "smoothstep",
       style: {
-        stroke: claim
-          ? claimStroke(claim, evidenceByQuestion.get(q.id) ?? [])
-          : STRUCTURAL_STROKE,
+        stroke: claim ? claimStroke(claim, evidenceByQuestion.get(q.id) ?? []) : STRUCTURAL_STROKE,
         strokeWidth: 1.5,
         strokeDasharray: "4 3",
       },
