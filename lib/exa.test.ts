@@ -3,12 +3,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Capture the options passed to Exa.search (and the constructor key) so we can assert
 // de-novo exclusion and per-request key resolution.
 const searchMock = vi.fn();
+const getContentsMock = vi.fn();
 const ctorMock = vi.fn();
 
 vi.mock("exa-js", () => {
   return {
     default: class FakeExa {
       search = searchMock;
+      getContents = getContentsMock;
       constructor(key: string) {
         ctorMock(key);
       }
@@ -16,11 +18,12 @@ vi.mock("exa-js", () => {
   };
 });
 
-import { createExaSearch } from "./exa";
+import { createExaSearch, createExaFetch } from "./exa";
 import { DEFAULT_CHARS } from "./run-config";
 
 beforeEach(() => {
   searchMock.mockReset();
+  getContentsMock.mockReset();
   ctorMock.mockReset();
   process.env.EXA_API_KEY = "env-key";
 });
@@ -212,5 +215,55 @@ describe("createExaSearch — API key resolution", () => {
   it("throws a clear error when neither a user key nor EXA_API_KEY is present", () => {
     delete process.env.EXA_API_KEY;
     expect(() => createExaSearch()).toThrow(/EXA_API_KEY/);
+  });
+});
+
+describe("createExaFetch — depth-mode link following", () => {
+  function withPage(result: unknown) {
+    getContentsMock.mockResolvedValue({ results: [result] });
+  }
+
+  it("requests text, a question-focused highlight, and on-page links", async () => {
+    withPage({ url: "https://a.com/1", title: "T", text: "body" });
+    await createExaFetch({ linksPerSource: 9 })("https://a.com/1", {
+      highlightQuery: "did it happen?",
+    });
+    const [urls, opts] = getContentsMock.mock.calls[0];
+    expect(urls).toEqual(["https://a.com/1"]);
+    expect(opts.extras.links).toBe(9);
+    expect(opts.text.maxCharacters).toBe(DEFAULT_CHARS);
+    expect(opts.highlights.query).toBe("did it happen?");
+  });
+
+  it("maps the page to a FetchedSource carrying its outbound links", async () => {
+    withPage({
+      url: "https://wire.com/story",
+      title: "Wire report",
+      text: "the body",
+      highlights: ["the excerpt"],
+      publishedDate: "2026-02-22T10:00:00Z",
+      extras: { links: ["https://origin.gov/statement", "https://x.com/share"] },
+    });
+    const page = await createExaFetch()("https://wire.com/story");
+    expect(page.domain).toBe("wire.com");
+    expect(page.passage).toBe("the excerpt");
+    expect(page.publishedDate).toBe("2026-02-22");
+    expect(page.links).toEqual(["https://origin.gov/statement", "https://x.com/share"]);
+  });
+
+  it("defaults links to an empty frontier when Exa returns none", async () => {
+    withPage({ url: "https://a.com/1", title: "T", text: "body" });
+    const page = await createExaFetch()("https://a.com/1");
+    expect(page.links).toEqual([]);
+  });
+
+  it("throws when Exa returns no contents for the URL", async () => {
+    getContentsMock.mockResolvedValue({ results: [] });
+    await expect(createExaFetch()("https://a.com/1")).rejects.toThrow(/no contents/);
+  });
+
+  it("throws a clear error when no Exa key is present", () => {
+    delete process.env.EXA_API_KEY;
+    expect(() => createExaFetch()).toThrow(/EXA_API_KEY/);
   });
 });

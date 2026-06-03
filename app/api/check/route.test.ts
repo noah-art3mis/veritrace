@@ -4,7 +4,10 @@ import { DEFAULT_CHARS } from "@/lib/run-config";
 
 const { streamPipeline } = vi.hoisted(() => ({ streamPipeline: vi.fn() }));
 const { createReasoner } = vi.hoisted(() => ({ createReasoner: vi.fn() }));
-const { createExaSearch } = vi.hoisted(() => ({ createExaSearch: vi.fn() }));
+const { createExaSearch, createExaFetch } = vi.hoisted(() => ({
+  createExaSearch: vi.fn(),
+  createExaFetch: vi.fn(),
+}));
 // The route is guarded by a module-level rate limiter shared across requests; mock it so the
 // suite doesn't drain a real bucket (and so we can drive the reject path explicitly).
 const { apiRateLimiter, clientIp } = vi.hoisted(() => ({
@@ -15,7 +18,7 @@ const { apiRateLimiter, clientIp } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/pipeline/stream", () => ({ streamPipeline }));
 vi.mock("@/lib/reasoner", () => ({ createReasoner }));
-vi.mock("@/lib/exa", () => ({ createExaSearch }));
+vi.mock("@/lib/exa", () => ({ createExaSearch, createExaFetch }));
 vi.mock("@/lib/rate-limit", () => ({ apiRateLimiter, clientIp }));
 
 import { POST } from "./route";
@@ -48,6 +51,7 @@ beforeEach(() => {
     askWithTools: vi.fn(),
   });
   createExaSearch.mockReset().mockReturnValue(vi.fn());
+  createExaFetch.mockReset().mockReturnValue(vi.fn());
   apiRateLimiter.check.mockReset().mockReturnValue({ ok: true });
 });
 

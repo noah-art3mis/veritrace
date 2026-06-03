@@ -9,6 +9,7 @@
 import type { Edge } from "@xyflow/react";
 import { SIZES, type AppNode, type NodePosition } from "./graph-to-flow";
 import { CIRCLE_DIAMETER, type RadialPosition, type RadialDepth } from "./radial-layout";
+import type { SpiralPosition } from "./spiral-layout";
 import type { QuestionItem, EvidenceItem } from "./graph-types";
 
 /**
@@ -134,6 +135,33 @@ export function buildRadialAnchors(
 
 function depthOf(type: AppNode["type"]): RadialDepth {
   return ({ source: 0, claim: 1, question: 2, evidence: 3 } as const)[type];
+}
+
+/**
+ * Spiral anchors: the computed coil slot (centre-origin) plus the same small 2-D jitter as the
+ * radial view, so charge+collide perturb the circles organically while the spiral shape holds. The
+ * geometry is a SpiralPosition (vs RadialPosition) but the anchor shape is identical, so the force
+ * layer treats the spiral exactly like the constellation.
+ */
+export function buildSpiralAnchors(
+  nodes: AppNode[],
+  positions: Map<string, SpiralPosition>,
+  sourceId: string,
+): ForceNodeMeta[] {
+  return nodes.map((n) => {
+    const p = positions.get(n.id);
+    const d = p?.diameter ?? CIRCLE_DIAMETER[depthOf(n.type)];
+    return {
+      id: n.id,
+      type: n.type,
+      w: d,
+      h: d,
+      radius: d / 2,
+      anchorX: (p?.x ?? 0) + jitter(n.id, "x", RADIAL_JITTER),
+      anchorY: (p?.y ?? 0) + jitter(n.id, "y", RADIAL_JITTER),
+      parentId: parentOf(n, sourceId),
+    };
+  });
 }
 
 const SEED_SPREAD = 24; // how far a new node spawns from its parent before springing out
