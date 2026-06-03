@@ -42,6 +42,13 @@ const MINIMAP_MAX_NODES = 220;
 // Past this many nodes the card graph gets hard to read; suggest the radial overview (ADR 0003).
 const RADIAL_SUGGEST_NODES = 60;
 
+// Zoom-out floor. fitView clamps the frame zoom to >= minZoom, so a too-high floor leaves a big
+// constellation cropped — its rim sits outside the viewport instead of the view zooming out to
+// frame it (#109). The radial overview's outerRadius grows with the source count, so it needs a
+// far lower floor than the card flow to keep the whole constellation on screen.
+const MIN_ZOOM_CARDS = 0.2;
+const MIN_ZOOM_RADIAL = 0.04;
+
 type ViewMode = "cards" | "radial";
 
 // OS "reduce motion" preference, SSR-safe. Server snapshot is `true` (assume reduced) so we never
@@ -60,11 +67,19 @@ function useReducedMotion(): boolean {
 }
 
 // Keep the whole graph in frame as nodes stream in (and when the view mode changes). Trailing-
-// debounced: a burst of evidence landing together triggers ONE fitView after it settles.
+// debounced: a burst of evidence landing together triggers ONE fitView after it settles. The
+// debounce + tween used to total ~700ms of reframing per burst, which read as a stall between
+// bursts and a back-and-forth lurch (#106); a shorter wait + quicker tween keeps the build a
+// continuous fill without the dead time, while still coalescing a burst into a single reframe.
+const FIT_DEBOUNCE_MS = 160;
+const FIT_DURATION_MS = 260;
 function FitOnChange({ dep }: { dep: unknown }) {
   const { fitView } = useReactFlow();
   useEffect(() => {
-    const t = setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 300);
+    const t = setTimeout(
+      () => fitView({ padding: 0.15, duration: FIT_DURATION_MS }),
+      FIT_DEBOUNCE_MS,
+    );
     return () => clearTimeout(t);
   }, [dep, fitView]);
   return null;
@@ -139,7 +154,7 @@ export default function FactGraphCanvas({
             edgeTypes={isRadial ? radialEdgeTypes : undefined}
             fitView
             fitViewOptions={{ padding: 0.15 }}
-            minZoom={0.2}
+            minZoom={isRadial ? MIN_ZOOM_RADIAL : MIN_ZOOM_CARDS}
             maxZoom={1.5}
             onlyRenderVisibleElements
             nodesDraggable={!isRadial}

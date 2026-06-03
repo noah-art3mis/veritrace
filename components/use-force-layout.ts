@@ -66,7 +66,12 @@ const RADIAL_FORCES: ForceConfig = {
 };
 
 const ALPHA_MIN = 0.02; // settle a touch earlier than d3's 0.001 default
-const REHEAT_ALPHA = 0.6; // a nudge, not a full re-scramble, when a node lands
+const REHEAT_ALPHA = 0.6; // full settle for a view switch / first build (coordinate space changes)
+// Streaming a single source in shouldn't reheat the whole constellation — that makes a question's
+// staggered sources land as one pop instead of a sequential drip (#108), and the whole-graph jostle
+// reads as dead time (#106). A gentler reheat springs the NEW node into its (now nearby, #107) halo
+// while barely disturbing the settled rest, so each source arrives on its own beat.
+const ADD_REHEAT_ALPHA = 0.3;
 const DRAG_ALPHA = 0.3; // keep neighbours live while a card is dragged
 const MOVE_EPSILON = 0.5; // sub-pixel moves don't warrant a new node object (skip the re-render)
 // Above this the per-frame sim isn't worth the frame budget; fall back to static placement (the
@@ -227,6 +232,9 @@ export function useForceLayout(flow: AnchorFlow, view: ViewMode, motion: boolean
     // rings), so we re-seed every node at its own anchor rather than carry stale positions.
     const carryOver = !viewChanged;
     const prevSims = simNodesRef.current;
+    // An incremental streaming add (already in this view, survivors carried over) gets a gentle
+    // reheat so the new node springs in alone; a view switch / first build gets the full settle.
+    const incrementalAdd = carryOver && prevSims.size > 0;
     const sims = new Map<string, SimNode>();
     for (const m of flow.anchors) {
       const existing = carryOver ? prevSims.get(m.id) : undefined;
@@ -264,7 +272,7 @@ export function useForceLayout(flow: AnchorFlow, view: ViewMode, motion: boolean
     );
     sim.force("x", forceX<SimNode>((d) => d.anchorX).strength(F.anchorX));
     sim.force("y", forceY<SimNode>((d) => d.anchorY).strength(F.anchorY));
-    sim.alpha(REHEAT_ALPHA);
+    sim.alpha(incrementalAdd ? ADD_REHEAT_ALPHA : REHEAT_ALPHA);
     simRef.current = sim;
 
     setNodes(buildNodeList());
