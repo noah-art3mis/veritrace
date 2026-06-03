@@ -208,3 +208,49 @@ describe("createOpenAICompatible with a reasoning model (DeepSeek)", () => {
     expect(body.temperature).toBe(0.5);
   });
 });
+
+describe("createOpenAICompatible with an optional-thinking model (Gemini 2.5 Flash)", () => {
+  // Gemini Flash defaults thinking ON and bills it against max_tokens, starving a tight per-stage
+  // budget (empty content / JSON crash). The policy makes thinking an explicit, reserved opt-in:
+  // off by default (reasoning_effort "none", the safe floor) and reserved when the run turns it on.
+  const flashConfig: RunConfig = { ...baseConfig, model: "gemini-2.5-flash", temperature: 0.5 };
+  const FLASH_TARGET = { ...TARGET, model: "gemini-2.5-flash" };
+
+  it("thinking off: forces reasoning_effort 'none', adds no reserve, keeps temperature", async () => {
+    createMock.mockResolvedValue(textResp("hi"));
+    await createOpenAICompatible({ ...flashConfig, thinking: false }, FLASH_TARGET).askText("q", {
+      maxTokens: 300,
+    });
+    const body = createMock.mock.calls[0][0];
+    expect(body.reasoning_effort).toBe("none");
+    expect(body.max_tokens).toBe(300);
+    expect(body.temperature).toBe(0.5);
+  });
+
+  it("thinking on: asks for 'medium' effort and reserves tokens on top of the answer budget", async () => {
+    createMock.mockResolvedValue(textResp("hi"));
+    await createOpenAICompatible({ ...flashConfig, thinking: true }, FLASH_TARGET).askText("q", {
+      maxTokens: 300,
+    });
+    const body = createMock.mock.calls[0][0];
+    expect(body.reasoning_effort).toBe("medium");
+    expect(body.max_tokens).toBe(300 + REASONING_TOKEN_RESERVE);
+    expect(body.temperature).toBe(0.5);
+  });
+
+  it("thinking on applies the reserve and effort on the tool-calling loop too", async () => {
+    createMock.mockResolvedValue(textResp("done"));
+    await createOpenAICompatible({ ...flashConfig, thinking: true }, FLASH_TARGET).askWithTools(
+      "go",
+      {
+        tools: [SEARCH_TOOL],
+        onTool: vi.fn(),
+        maxSteps: 1,
+        maxTokens: 600,
+      },
+    );
+    const body = createMock.mock.calls[0][0];
+    expect(body.reasoning_effort).toBe("medium");
+    expect(body.max_tokens).toBe(600 + REASONING_TOKEN_RESERVE);
+  });
+});

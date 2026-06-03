@@ -12,6 +12,19 @@ export const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
 export type Provider = "anthropic" | "openai-compatible";
 
+/**
+ * Chain-of-thought policy for OpenAI-compatible backends that reason before answering and bill the
+ * reasoning_tokens against max_tokens (#102, #110). Three explicit states; "absent" is the fourth:
+ *   "always"   — reasons on every call (DeepSeek V4): high effort, the reserve is always added.
+ *   "optional" — can reason but defaults OFF (Gemini 2.5 Flash): honors the run's `thinking` toggle;
+ *                off ⇒ reasoning_effort "none" (the safe floor), on ⇒ "medium" effort + reserve.
+ *   absent     — thinking is not driven by the adapter; no reasoning params are sent.
+ * Whenever thinking is active the adapter (lib/openai-compatible.ts) adds REASONING_TOKEN_RESERVE on
+ * top of the answer budget, mirroring the Anthropic THINKING_BUDGET path (anthropic.ts), so reasoning
+ * can't consume the whole budget and leave content === "" (which crashes parseJSON).
+ */
+export type ThinkingPolicy = "always" | "optional";
+
 /** One selectable model: its label, which backend serves it, and (approximate) cost. */
 export interface ModelInfo {
   label: string;
@@ -23,12 +36,8 @@ export interface ModelInfo {
   outputCost: number;
   /** Reasoning models reject a custom temperature; for these the UI control is inert. */
   noTemperature?: boolean;
-  /**
-   * Model reasons before answering (DeepSeek V4), spending reasoning_tokens that count against the
-   * output budget. The OpenAI-compatible adapter adds REASONING_TOKEN_RESERVE on top of the answer
-   * budget and requests high effort so reasoning can't starve the answer.
-   */
-  reasoning?: boolean;
+  /** How this model's chain-of-thought is driven by the OpenAI-compatible adapter (see ThinkingPolicy). */
+  thinkingPolicy?: ThinkingPolicy;
 }
 
 // The models we expose in the UI dropdown. The entry's `provider` (+ `baseUrl`) decides which
@@ -41,10 +50,10 @@ export const MODELS = {
   "gpt-5.5": { label: "GPT-5.5", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 5, outputCost: 30, noTemperature: true }, // prettier-ignore
   "gpt-5.4-mini": { label: "GPT-5.4 mini", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.75, outputCost: 4.5, noTemperature: true }, // prettier-ignore
   "gpt-5.4-nano": { label: "GPT-5.4 nano", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.2, outputCost: 1.25, noTemperature: true }, // prettier-ignore
-  "gemini-2.5-flash": { label: "Gemini 2.5 Flash", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.3, outputCost: 2.5 }, // prettier-ignore
+  "gemini-2.5-flash": { label: "Gemini 2.5 Flash", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.3, outputCost: 2.5, thinkingPolicy: "optional" }, // prettier-ignore
   "gemini-2.5-flash-lite": { label: "Gemini 2.5 Flash-Lite", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.1, outputCost: 0.4 }, // prettier-ignore
-  "deepseek-v4-flash": { label: "DeepSeek V4 Flash", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.14, outputCost: 0.28, reasoning: true, noTemperature: true }, // prettier-ignore
-  "deepseek-v4-pro": { label: "DeepSeek V4 Pro", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.435, outputCost: 0.87, reasoning: true, noTemperature: true }, // prettier-ignore
+  "deepseek-v4-flash": { label: "DeepSeek V4 Flash", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.14, outputCost: 0.28, thinkingPolicy: "always", noTemperature: true }, // prettier-ignore
+  "deepseek-v4-pro": { label: "DeepSeek V4 Pro", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.435, outputCost: 0.87, thinkingPolicy: "always", noTemperature: true }, // prettier-ignore
 } as const satisfies Record<string, ModelInfo>;
 
 export type ModelId = keyof typeof MODELS;
@@ -64,16 +73,26 @@ export function supportsTemperature(model: ModelId): boolean {
   return !modelInfo(model).noTemperature;
 }
 
-/** Whether the model reasons before answering — the OpenAI-compatible adapter then reserves
- * REASONING_TOKEN_RESERVE on top of the answer budget and requests high reasoning effort. */
-export function isReasoningModel(model: ModelId): boolean {
-  return modelInfo(model).reasoning === true;
+/** This model's chain-of-thought policy (see ThinkingPolicy); absent ⇒ thinking not adapter-driven. */
+export function thinkingPolicy(model: ModelId): ThinkingPolicy | undefined {
+  return modelInfo(model).thinkingPolicy;
 }
 
-// Reasoning reserve for OpenAI-compatible reasoning models (DeepSeek V4). Their reasoning_tokens are
-// billed against max_tokens, so a tight answer budget gets entirely consumed by reasoning and the
-// content comes back empty (finish_reason: "length"). The adapter adds this on top of the caller's
-// answer budget — the same shape as the Anthropic THINKING_BUDGET path (anthropic.ts).
+/**
+ * Whether chain-of-thought is active for this run: "always" models reason every call; "optional"
+ * models reason only when the run turns `thinking` on. Drives the reasoning-token reserve and the
+ * reasoning_effort the OpenAI-compatible adapter requests.
+ */
+export function thinkingActive(model: ModelId, thinking: boolean): boolean {
+  const policy = thinkingPolicy(model);
+  return policy === "always" || (policy === "optional" && thinking);
+}
+
+// Reasoning reserve for OpenAI-compatible thinking models. Their reasoning_tokens are billed against
+// max_tokens, so a tight answer budget gets entirely consumed by reasoning and the content comes back
+// empty (finish_reason: "length", which crashes parseJSON). When thinking is active the adapter adds
+// this on top of the caller's answer budget — the same shape as the Anthropic THINKING_BUDGET path
+// (anthropic.ts) — so reasoning can't starve the answer.
 export const REASONING_TOKEN_RESERVE = 4096;
 
 // Extended-thinking budget. The API requires budget_tokens >= 1024 and
