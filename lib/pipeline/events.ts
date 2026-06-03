@@ -21,5 +21,10 @@ export type PipelineEvent =
   | { type: "evidence"; evidence: EvidenceItem }
   | { type: "claim_verdict"; id: string; verdict: Verdict; rationale: string }
   | { type: "source_verdict"; verdict: Verdict; tally?: ClaimTally }
+  // Non-fatal, run-level advisory (#100): the run finished, but something about it makes the
+  // results unreliable — e.g. EVERY web search errored (Exa credits exhausted / key revoked), so
+  // the graph degraded to all-NEI not because the web lacks answers but because retrieval is down.
+  // Distinct from `error` (which aborts): the graph still renders, with a banner over it.
+  | { type: "warning"; message: string }
   | { type: "error"; message: string }
   | { type: "done" };

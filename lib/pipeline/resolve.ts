@@ -69,10 +69,24 @@ const SEARCH_TOOL: ToolDef = {
   },
 };
 
-/** What resolveQuestion returns: the classified evidence plus the retrieval trace behind it. */
+/**
+ * Tally of this question's web searches: how many ran and how many errored (#100). Search failures
+ * are deliberately swallowed so one flaky query can't abort the run (#70) — but that also hides a
+ * wholesale outage (credits exhausted, key revoked). The orchestrator sums these across the run to
+ * tell "the web had no answer" (genuine NEI) apart from "retrieval itself was down" (all searches
+ * errored). `lastError` carries one representative provider message for the surfaced warning.
+ */
+export interface RetrievalOutcome {
+  searches: number;
+  failures: number;
+  lastError?: string;
+}
+
+/** What resolveQuestion returns: the classified evidence, the retrieval trace, and the search tally. */
 export interface ResolvedQuestion {
   evidence: EvidenceItem[];
   trace: QuestionTrace;
+  retrieval: RetrievalOutcome;
 }
 
 /**
@@ -94,11 +108,19 @@ export async function resolveQuestion(
   const window = dateWindow(claim.date);
   const collected = new Map<string, RawEvidence>();
   const searchQueries: string[] = [];
+  // Count every search and its outcome so the orchestrator can spot a wholesale retrieval outage
+  // (#100) — the failures below are otherwise swallowed (#70) and would masquerade as plain NEI.
+  const retrieval: RetrievalOutcome = { searches: 0, failures: 0 };
+  function recordSearchFailure(err: unknown) {
+    retrieval.failures++;
+    retrieval.lastError = err instanceof Error ? err.message : String(err);
+  }
 
   async function onTool(name: string, input: unknown): Promise<unknown> {
     if (name !== "search_evidence") return { error: `unknown tool: ${name}` };
     const query = (input as { query?: string }).query ?? "";
     searchQueries.push(query); // record the actual executed queries for the trace
+    retrieval.searches++;
     // Focus each source's highlight on the question being resolved, not the model's keyword
     // query — the highlight is the card excerpt, so this keeps it on-point.
     try {
@@ -109,7 +131,8 @@ export async function resolveQuestion(
       // A search failure (network timeout, Exa 5xx — even after retries) must NOT throw out of
       // the gather loop, which would abort this question and, via Promise.race, the whole run
       // (issue #70). Report it to the model so it can try another angle; the question resolves
-      // on whatever else was gathered.
+      // on whatever else was gathered. Counted (above) so an all-failing run is still detectable.
+      recordSearchFailure(err);
       return { error: `search failed: ${err instanceof Error ? err.message : String(err)}` };
     }
   }
@@ -124,9 +147,11 @@ export async function resolveQuestion(
   const seedRankings = await Promise.all(
     seedQueries.map((q) => {
       searchQueries.push(q);
-      return deps
-        .search(q, { ...window, highlightQuery: question.text })
-        .catch(() => [] as RawEvidence[]);
+      retrieval.searches++;
+      return deps.search(q, { ...window, highlightQuery: question.text }).catch((err) => {
+        recordSearchFailure(err);
+        return [] as RawEvidence[];
+      });
     }),
   );
   for (const r of reciprocalRankFusion(seedRankings, (e) => e.url)) collected.set(r.url, r);
@@ -148,7 +173,7 @@ export async function resolveQuestion(
     searchQueries,
     gatherSummary: result.text.trim(),
   };
-  return { evidence, trace };
+  return { evidence, trace, retrieval };
 }
 
 // Claim-echo filter (HerO reranking.py: drop a passage when the claim is >92% of it). Circular

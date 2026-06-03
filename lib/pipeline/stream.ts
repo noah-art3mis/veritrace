@@ -10,7 +10,7 @@ import type { PipelineEvent } from "./events";
 import type { PipelineDeps } from "./deps";
 import { extractClaims } from "./extract";
 import { generateQuestions } from "./questions";
-import { resolveQuestion, rationaleFor } from "./resolve";
+import { resolveQuestion, rationaleFor, type RetrievalOutcome } from "./resolve";
 import { claimVerdict, sourceVerdict, tallyClaims } from "./verdict";
 import { isRelevanceDropped, isSearchable } from "./claim-status";
 import { factCheckEvidence, factCheckRationale } from "../factcheck";
@@ -119,7 +119,7 @@ export async function* streamPipeline(
 
   const tasks = allQuestions.map((q) =>
     resolveQuestion(claimById.get(q.claimId)!, q, deps)
-      .then(({ evidence, trace }) => ({ q, evidence, trace }))
+      .then(({ evidence, trace, retrieval }) => ({ q, evidence, trace, retrieval }))
       // Isolate per-question failures: a single question whose retrieval throws (an Exa outage
       // that outlived its retries, a classify error) must not abort the parallel fan-out and kill
       // every other question (issue #70). Degrade it to no evidence — with a trace that SAYS why,
@@ -132,10 +132,19 @@ export async function* streamPipeline(
           searchQueries: [],
           gatherSummary: `Retrieval failed: ${err instanceof Error ? err.message : String(err)}`,
         } satisfies QuestionTrace,
+        retrieval: { searches: 0, failures: 0 } as RetrievalOutcome,
       })),
   );
 
-  for await (const { q, evidence, trace } of asCompleted(tasks)) {
+  // Roll the per-question search tallies up to a run-level total so a wholesale retrieval outage
+  // can be told apart from a genuine de-novo dead end (#100).
+  const runRetrieval: RetrievalOutcome = { searches: 0, failures: 0 };
+
+  for await (const { q, evidence, trace, retrieval } of asCompleted(tasks)) {
+    runRetrieval.searches += retrieval.searches;
+    runRetrieval.failures += retrieval.failures;
+    if (retrieval.lastError) runRetrieval.lastError = retrieval.lastError;
+
     yield { type: "question_status", id: q.id, status: "answered" };
     yield { type: "question_trace", id: q.id, trace };
     for (const e of evidence) yield { type: "evidence", evidence: e };
@@ -157,6 +166,15 @@ export async function* streamPipeline(
     }
   }
 
+  // 4b. Wholesale-retrieval-failure guard (#100). Per-question search failures are swallowed (#70)
+  // so one flaky query can't abort the run — but when EVERY search in the run errored (Exa credits
+  // exhausted, key revoked), the graph degrades to all-NEI for a reason that has nothing to do with
+  // the web lacking answers. Surface that distinctly so an empty graph + a wall of "not enough
+  // evidence" isn't mistaken for a genuine de-novo dead end. Only the all-failing case fires here.
+  if (runRetrieval.searches > 0 && runRetrieval.failures === runRetrieval.searches) {
+    yield { type: "warning", message: retrievalFailureMessage(runRetrieval.lastError) };
+  }
+
   // 5. Finale: aggregate to the source-text verdict (in claim order), with the support
   // tally. Relevance-dropped claims are excluded from the aggregate and the "of N" — they
   // were never checked — but counted separately so the UI can show "· 3 dropped".
@@ -171,6 +189,16 @@ export async function* streamPipeline(
   }));
   yield { type: "source_verdict", verdict: sourceVerdict(weighted), tally };
   yield { type: "done" };
+}
+
+/**
+ * The user-facing message for a whole-run retrieval outage (#100). Names the failure as retrieval
+ * (not the verdict logic), folds in one representative provider error, and warns that the verdicts
+ * below are unreliable — every claim fell back to NEI on empty input, not on a real dead end.
+ */
+export function retrievalFailureMessage(lastError?: string): string {
+  const detail = lastError ? ` Last error: ${lastError}.` : "";
+  return `Retrieval is failing — every web search this run errored, so no evidence could be gathered.${detail} The verdicts below are unreliable: with nothing retrieved, every claim falls back to "not enough evidence". Check the search provider's key and credit, then re-run.`;
 }
 
 /** Yield the results of an array of promises in completion order (not input order). */
