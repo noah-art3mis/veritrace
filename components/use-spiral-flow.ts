@@ -1,9 +1,9 @@
 /* eslint-disable react-hooks/refs */
 // Spiral-view twin of useRadialAnchors: the same topology-keyed layout cache, but it runs
-// spiralLayout instead of radialLayout, so the depth walk reads as one outward coil. Returns the
-// per-node anchors (the spiral slot the simulation pulls toward) plus the edges and raw nodes the
-// sim needs. Like the radial view it reuses the structural+stance edge set, so the only difference
-// from the constellation is where the circles sit (coil vs concentric rings).
+// spiralLayout instead of radialLayout, so each claim's depth walk reads as its own spiral-galaxy
+// arm. Returns the per-node anchors (the spiral slot the simulation pulls toward) plus the edges and
+// raw nodes the sim needs. Like the radial view it reuses the structural+stance edge set, so the
+// only difference from the constellation is where the circles sit (galaxy arms vs concentric rings).
 import { useMemo, useRef } from "react";
 import type { FactGraph } from "@/lib/graph-types";
 import { buildNodes } from "@/lib/graph-to-flow";

@@ -64,7 +64,7 @@ Every stage is a recognized fact-checking / retrieval technique made inspectable
 
 - **The graph is the explanation.** It builds live, streaming one source at a time rather than dumping per-question blocks (#9, #45).
 - **Constellation view.** An additive radial overview for reading the _shape_ of a large investigation at a glance, with zoom-aware edge labels (#47, #82), spring-eased settle motion (#49), and the real card reused on open (#48, #86) — secondary to the cards, never a replacement (ADR 0003).
-- **Spiral view.** A third rendering, the companion to depth mode: an Archimedean coil from the source outward, each question's evidence wound by walk-hop, so a claim traced echo → origin reads as one continuous arc (depth-as-distance). Additive alongside Cards and the Constellation; a depth run opens on it by default (ADR 0011).
+- **Spiral view.** A third rendering, the companion to depth mode: a **spiral galaxy** — the source at the core, each claim rooting its own spiral arm, evidence threaded outward along the arm by walk-hop so a claim traced echo → origin reads as a strand trailing off the core (depth-as-distance). Additive alongside Cards and the Constellation; a depth run opens on it by default (ADR 0011).
 - **Verdict-driven cards.** Consistent card anatomy with verdict colour propagated along the connectors (#23, #24, #26, #79, #80), reading-order orientation, and clean edge routing (#25, #81).
 - **Colourblind-safe encoding.** A colour↔meaning legend plus redundant non-colour glyph cues (#8, #44).
 - **Re-include a dropped claim.** The fact-checker can manually un-drop a relevance-filtered claim back into the graph (#33, #83).

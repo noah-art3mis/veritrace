@@ -2,35 +2,45 @@ import type { Edge } from "@xyflow/react";
 import type { FactGraph, EvidenceItem } from "./graph-types";
 import { CIRCLE_DIAMETER, type RadialDepth, buildRadialEdges } from "./radial-layout";
 
-// The "Spiral" depth-walk layout — the companion to depth mode. Where the radial Constellation puts
-// each layer on its own concentric ring (good for reading the breadth of a fan-out), the spiral
-// winds the whole investigation outward along ONE Archimedean coil, in reading order: Source at the
-// centre, then each Claim, its Questions, and each Question's Evidence — and crucially, the evidence
-// under a question is ordered by its DEPTH-WALK hop, so a chain the agent traced from echo → origin
-// reads as a continuous outward arc. Depth-as-distance: the deeper the walk went toward the source,
-// the further out along the coil it sits.
+// The "Spiral" depth-walk layout — a spiral galaxy, the companion to depth mode. The Source is the
+// galactic core; each Claim is the root of its own spiral ARM radiating from the core; and that
+// claim's Evidence is threaded OUTWARD along the arm in depth-walk order (hop 0 nearest the core,
+// the origin furthest out). Five claims → five arms — "the Milky Way": a central bulge with long
+// strands trailing off it. Every arm curls the same way (a shared per-hop angular twist), which is
+// what turns a set of radial spokes into a pinwheel.
 //
-// Like the radial layout this is the source-of-truth geometry; any springy motion lives in the
-// force layer's transition. The four layers stay intact — encoded by circle size (depth), not by
-// ring — so the spiral is a third *rendering* of the same graph, never a new topology.
+// Where the radial Constellation reads the BREADTH of a fan-out (each layer on its own ring), the
+// galaxy reads the DEPTH of a walk: an arm's length is how far that claim was traced toward its
+// origin. When a claim has more than one question, the arm FORKS — one sub-strand per question,
+// fanned slightly apart at the root so the QA-pairs stay legible — then each sub-strand winds out on
+// its own.
+//
+// Like the radial layout this is the source-of-truth geometry; springy motion lives in the force
+// layer's transition. The four layers stay intact — encoded by circle size (depth), not by ring —
+// so the spiral is a third *rendering* of the same graph, never a new topology.
 
 export type SpiralDepth = RadialDepth;
 
 export interface SpiralPosition {
-  x: number; // centre-origin coordinates (Source at 0,0)
+  x: number; // centre-origin coordinates (Source at 0,0 — the galactic core)
   y: number;
-  angle: number; // radians along the coil
-  radius: number; // distance from centre — grows monotonically along the walk
+  angle: number; // radians — direction of this node along its arm
+  radius: number; // distance from the core — grows outward along the arm (hop distance)
   depth: SpiralDepth;
   diameter: number; // circle size — depth-only encoding (same as the radial view)
 }
 
-// Archimedean spiral r = B·θ. B sets how fast the coil expands per radian; the angular step per node
-// is arc-length normalised (Δθ ≈ pitch / r) so circles stay ~evenly spaced as the radius grows
-// instead of bunching near the centre. START clears the source before the first claim lands.
-const SPIRAL_B = 24;
-const SPIRAL_GAP = 18; // min gap between consecutive circles along the coil
-const SPIRAL_START = 2.4; // starting angle (radians)
+// Galaxy geometry. Claims sit on an inner ring (CLAIM_RADIUS), their questions a little further out
+// (QUESTION_RADIUS) at the root of each evidence strand; every evidence hop steps HOP_PITCH further
+// out and twists the arm by ARM_CURL, so the strand spirals. ARM_CURL shares one sign across all
+// arms ⇒ a coherent pinwheel rather than straight spokes. QUESTION_FAN spreads a claim's question
+// sub-arms apart at the root so a forked arm reads as distinct strands.
+const CLAIM_RADIUS = 120;
+const QUESTION_RADIUS = 210;
+const HOP_PITCH = 72; // radial step per evidence hop along an arm
+const ARM_CURL = 0.22; // radians a strand twists per hop (shared sign ⇒ pinwheel)
+const QUESTION_FAN = 0.34; // angular spread between a claim's question sub-arms
+const START_ANGLE = -Math.PI / 2; // the first claim's arm points up (12 o'clock)
 
 const DEPTH_OF: Record<"source" | "claim" | "question" | "evidence", SpiralDepth> = {
   source: 0,
@@ -39,19 +49,31 @@ const DEPTH_OF: Record<"source" | "claim" | "question" | "evidence", SpiralDepth
   evidence: 3,
 };
 
-// Evidence under one question reads in walk order: hop 0 first, then 1, 2, … toward the origin.
-// Breadth-gathered evidence has no `depth`, so it keeps its retrieved order (stable sort).
+// Evidence along an arm reads in walk order: hop 0 nearest the core, then 1, 2, … toward the origin.
+// Breadth-gathered evidence has no `depth`, so it keeps its retrieved order (stable sort) and trails
+// after any hopped evidence.
 function byHop(a: EvidenceItem, b: EvidenceItem): number {
   return (a.depth ?? Number.POSITIVE_INFINITY) - (b.depth ?? Number.POSITIVE_INFINITY);
 }
 
 /**
- * Lay the graph out as one spiral. Pure + deterministic; positions are centre-origin. The node
- * VISIT ORDER (source → per claim: claim, then per question: question, then its evidence by hop) is
- * what the coil traces, so a claim's whole subtree stays contiguous and a depth chain winds outward.
+ * Lay the graph out as a spiral galaxy. Pure + deterministic; positions are centre-origin. The
+ * Source is the core; each Claim roots an arm at an evenly-distributed angle; each Question forks the
+ * arm; each Question's Evidence threads outward by hop, twisting as it goes. A claim's whole subtree
+ * is therefore one coherent arm, and the further out a node sits the deeper the walk reached.
  */
 export function spiralLayout(graph: FactGraph): Map<string, SpiralPosition> {
   const positions = new Map<string, SpiralPosition>();
+  const place = (id: string, angle: number, radius: number, depth: SpiralDepth) => {
+    positions.set(id, {
+      x: radius * Math.cos(angle),
+      y: radius * Math.sin(angle),
+      angle,
+      radius,
+      depth,
+      diameter: CIRCLE_DIAMETER[depth],
+    });
+  };
 
   const questionsByClaim = new Map<string, FactGraph["questions"]>();
   for (const q of graph.questions) {
@@ -66,46 +88,35 @@ export function spiralLayout(graph: FactGraph): Map<string, SpiralPosition> {
     evidenceByQuestion.set(e.questionId, bucket);
   }
 
-  // Build the reading-order list of (id, depth) the coil will trace, source first.
-  const order: { id: string; depth: SpiralDepth }[] = [
-    { id: graph.source.id, depth: DEPTH_OF.source },
-  ];
-  for (const claim of graph.claims) {
-    order.push({ id: claim.id, depth: DEPTH_OF.claim });
-    for (const q of questionsByClaim.get(claim.id) ?? []) {
-      order.push({ id: q.id, depth: DEPTH_OF.question });
-      for (const e of [...(evidenceByQuestion.get(q.id) ?? [])].sort(byHop)) {
-        order.push({ id: e.id, depth: DEPTH_OF.evidence });
-      }
-    }
-  }
+  // The Source is the galactic core.
+  place(graph.source.id, 0, 0, DEPTH_OF.source);
 
-  // Source sits at the centre; the rest wind outward along the Archimedean coil.
-  const [head, ...rest] = order;
-  positions.set(head.id, {
-    x: 0,
-    y: 0,
-    angle: 0,
-    radius: 0,
-    depth: head.depth,
-    diameter: CIRCLE_DIAMETER[head.depth],
-  });
+  // One arm per claim, evenly distributed around the core.
+  const armCount = Math.max(graph.claims.length, 1);
+  graph.claims.forEach((claim, ci) => {
+    const armAngle = START_ANGLE + (ci * 2 * Math.PI) / armCount;
+    place(claim.id, armAngle, CLAIM_RADIUS, DEPTH_OF.claim);
 
-  let theta = SPIRAL_START;
-  for (const node of rest) {
-    const radius = SPIRAL_B * theta;
-    const diameter = CIRCLE_DIAMETER[node.depth];
-    positions.set(node.id, {
-      x: radius * Math.cos(theta),
-      y: radius * Math.sin(theta),
-      angle: theta,
-      radius,
-      depth: node.depth,
-      diameter,
+    const qs = questionsByClaim.get(claim.id) ?? [];
+    qs.forEach((q, qi) => {
+      // Fan the claim's questions symmetrically around its arm angle, so a multi-question claim
+      // forks into distinct sub-strands instead of stacking them on one line.
+      const qAngle = armAngle + (qi - (qs.length - 1) / 2) * QUESTION_FAN;
+      place(q.id, qAngle, QUESTION_RADIUS, DEPTH_OF.question);
+
+      // Thread the evidence outward along the sub-arm, twisting by ARM_CURL each hop so the strand
+      // spirals. Spacing is by array index (even), order is by walk hop.
+      const evs = [...(evidenceByQuestion.get(q.id) ?? [])].sort(byHop);
+      evs.forEach((e, ei) => {
+        place(
+          e.id,
+          qAngle + (ei + 1) * ARM_CURL,
+          QUESTION_RADIUS + (ei + 1) * HOP_PITCH,
+          DEPTH_OF.evidence,
+        );
+      });
     });
-    // Advance by an arc-length-normalised step so spacing stays ~constant as the coil expands.
-    theta += (diameter + SPIRAL_GAP) / Math.max(radius, SPIRAL_B);
-  }
+  });
 
   return positions;
 }
@@ -113,7 +124,7 @@ export function spiralLayout(graph: FactGraph): Map<string, SpiralPosition> {
 /**
  * Edges for the spiral view. Reuses the radial edge set — verdict-coloured structural spokes plus
  * stance-labelled evidence spokes and conflict chords — so parentage and stance read the same way
- * they do in the Constellation; only the node placement (coil vs rings) differs.
+ * they do in the Constellation; only the node placement (galaxy arms vs concentric rings) differs.
  */
 export function buildSpiralEdges(graph: FactGraph): Edge[] {
   return buildRadialEdges(graph);
