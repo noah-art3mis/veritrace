@@ -155,6 +155,20 @@ describe("parseConfig deepSearch", () => {
   });
 });
 
+describe("parseConfig depthMode", () => {
+  it("defaults depthMode to false (breadth gather)", () => {
+    expect(parseConfig({}).depthMode).toBe(false);
+  });
+
+  it("coerces a truthy depthMode to true", () => {
+    expect(parseConfig({ depthMode: true }).depthMode).toBe(true);
+  });
+
+  it("coerces a falsy depthMode to false", () => {
+    expect(parseConfig({ depthMode: 0 }).depthMode).toBe(false);
+  });
+});
+
 describe("parseConfig category", () => {
   it("defaults category to no restriction", () => {
     expect(parseConfig({}).category).toBe("");

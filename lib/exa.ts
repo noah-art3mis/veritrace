@@ -140,6 +140,59 @@ export function createExaSearch(
   };
 }
 
+/** One page fetched by URL in depth mode: its text/excerpt as evidence, plus its outbound links. */
+export interface FetchedSource extends RawEvidence {
+  /** Outbound links found on the page (Exa contents.extras.links) — the depth walk's frontier. */
+  links: string[];
+}
+
+/**
+ * Build a "fetch one page by URL" function bound to a run's Exa key — the depth-mode counterpart to
+ * the search closure. Where `createExaSearch` finds candidate sources, this VISITS a specific source
+ * the walk chose: it returns the page as a `RawEvidence` (so the same classifier reads it) PLUS the
+ * outbound links Exa scraped off the page, which become the next hop's frontier. We ask Exa for the
+ * fuller `text` (the classifier reads it), a question-focused `highlight` (the card excerpt), and up
+ * to `linksPerSource` on-page `extras.links`. `livecrawl: "preferred"` is on by default here — a
+ * page we are deliberately walking to is worth a fresh crawl so its links aren't a stale snapshot.
+ */
+export function createExaFetch(
+  cfg: ExaSearchConfig & { linksPerSource?: number } = {},
+): (url: string, opts?: SearchOptions) => Promise<FetchedSource> {
+  const { exaKey, maxChars = DEFAULT_CHARS, linksPerSource = 12 } = cfg;
+  const apiKey = exaKey || process.env.EXA_API_KEY;
+  if (!apiKey) throw new Error("EXA_API_KEY is not set (and no key was provided)");
+  const client = new Exa(apiKey);
+
+  return async function fetchSource(url: string, opts: SearchOptions = {}): Promise<FetchedSource> {
+    const { results } = await withRetry(
+      () =>
+        client.getContents([url], {
+          text: { maxCharacters: maxChars },
+          highlights: { query: opts.highlightQuery, maxCharacters: HIGHLIGHT_CHARS },
+          extras: { links: linksPerSource },
+          livecrawl: "preferred",
+        }),
+      { attempts: 3, isRetryable: isTransientNetworkError },
+    );
+    const r = results[0];
+    if (!r) throw new Error(`Exa returned no contents for ${url}`);
+    const highlight = Array.isArray(r.highlights) ? r.highlights[0] : undefined;
+    const text = typeof r.text === "string" ? r.text : undefined;
+    const passage = (highlight || text || "").trim();
+    const links = Array.isArray(r.extras?.links) ? r.extras.links : [];
+    return {
+      title: r.title ?? r.url,
+      url: r.url,
+      domain: domainOf(r.url),
+      faviconUrl: r.favicon || faviconFor(r.url),
+      publishedDate: r.publishedDate?.slice(0, 10),
+      passage,
+      text: (text || highlight || "").trim(),
+      links,
+    };
+  };
+}
+
 function domainOf(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "");

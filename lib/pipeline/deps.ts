@@ -1,7 +1,19 @@
 import type { AnthropicCaller } from "../anthropic";
-import type { RawEvidence, SearchOptions } from "../exa";
+import type { RawEvidence, FetchedSource, SearchOptions } from "../exa";
 import type { FactCheckHit } from "../factcheck";
 import type { Reranker } from "./rerank";
+
+/**
+ * Depth-mode dependencies (present only when RunConfig.depthMode is on AND the search backend can
+ * follow links). `fetchSource` visits one page by URL and returns its text + outbound links; the
+ * caps bound the walk. ABSENT ⇒ the default breadth gather (resolve.ts branches on it).
+ */
+export interface DepthDeps {
+  /** Visit one page by URL: its text/excerpt (as evidence) plus its outbound links (next frontier). */
+  fetchSource: (url: string, opts?: SearchOptions) => Promise<FetchedSource>;
+  /** Max links the walk may follow before it stops and judges what it holds (MAX_DEPTH_HOPS). */
+  maxHops: number;
+}
 
 // The per-request dependencies threaded through the pipeline: a model caller and an
 // evidence search, both already bound to this run's config + API keys (see createAnthropic
@@ -34,4 +46,10 @@ export interface PipelineDeps {
    * re-ranks the gathered candidates by cosine to the directional hypotheticals before classify.
    */
   rerank?: Reranker;
+  /**
+   * Optional depth mode (#depth). Present only when RunConfig.depthMode is on and the backend can
+   * follow links; ABSENT keeps the breadth gather. When present, resolveQuestion walks each claim
+   * toward its origin (follow links / chase the named lead) instead of fanning out parallel queries.
+   */
+  depth?: DepthDeps;
 }

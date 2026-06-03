@@ -22,6 +22,7 @@ import { circleNodeTypes, NodeDetail } from "./graph-circles";
 import { radialEdgeTypes } from "./radial-edges";
 import { useGraphAnchors } from "./use-graph-flow";
 import { useRadialAnchors } from "./use-radial-flow";
+import { useSpiralAnchors } from "./use-spiral-flow";
 import { useForceLayout } from "./use-force-layout";
 import { useIsMobile } from "./use-is-mobile";
 import { GraphLegend } from "./graph-legend";
@@ -42,7 +43,10 @@ const MINIMAP_MAX_NODES = 220;
 // Past this many nodes the card graph gets hard to read; suggest the radial overview (ADR 0003).
 const RADIAL_SUGGEST_NODES = 60;
 
-type ViewMode = "cards" | "radial";
+// Three renderings of the same 4-layer graph: "cards" (default dagre lanes), "radial" (concentric
+// Constellation overview), and "spiral" (the depth-walk coil — the companion to depth mode).
+type ViewMode = "cards" | "radial" | "spiral";
+const isCircleView = (v: ViewMode) => v !== "cards";
 
 // OS "reduce motion" preference, SSR-safe. Server snapshot is `true` (assume reduced) so we never
 // schedule a requestAnimationFrame loop during render on the server; the client re-reads on mount.
@@ -74,15 +78,18 @@ export default function FactGraphCanvas({
   graph,
   showMinimap = true,
   withholdVerdict = false,
+  depthMode = false,
   onReinclude,
 }: {
   graph: FactGraph;
   showMinimap?: boolean;
   withholdVerdict?: boolean;
+  /** This run used depth mode — default to the spiral view, which is built to read the walk. */
+  depthMode?: boolean;
   onReinclude?: (claim: ClaimItem) => void;
 }) {
   const isMobile = useIsMobile();
-  const [view, setView] = useState<ViewMode>("cards");
+  const [view, setView] = useState<ViewMode>(depthMode ? "spiral" : "cards");
   // Pipeline internals (HyDE seed, agent queries, stance confidence, raw fragments) are a graph
   // affordance, not a run setting — toggled live from the "details" button beside the view toggle.
   const [showInternals, setShowInternals] = useState(false);
@@ -91,26 +98,27 @@ export default function FactGraphCanvas({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [pinnedId, setPinnedId] = useState<string | null>(null);
 
-  const isRadial = view === "radial";
+  const isCircle = isCircleView(view);
   // Respect the OS reduced-motion setting: when set, fall back to static placement (no sim, no rAF).
   // SSR snapshot is `true` (assume reduced) so the server never schedules animation frames.
   const reducedMotion = useReducedMotion();
   const motion = !reducedMotion;
 
-  // Both anchor hooks run unconditionally (hooks rule); the force layer drives whichever view is
-  // active. dagre/radial still only recompute on topology change inside the anchor hooks.
+  // The depth→spiral default is set in the initial view state above. The canvas is keyed by run
+  // (workbench remounts it per check), so a fresh run in depth mode opens straight on the spiral
+  // without an effect — and a manual view switch afterward is never overridden.
+
+  // All three anchor hooks run unconditionally (hooks rule); the force layer drives whichever view
+  // is active. dagre/radial/spiral still only recompute on topology change inside the anchor hooks.
   const cardFlow = useGraphAnchors(graph);
   const radialFlow = useRadialAnchors(graph);
-  const flow = isRadial ? radialFlow : cardFlow;
-  const { nodes, onNodesChange, settleNonce } = useForceLayout(
-    flow,
-    isRadial ? "radial" : "cards",
-    motion,
-  );
+  const spiralFlow = useSpiralAnchors(graph);
+  const flow = view === "spiral" ? spiralFlow : view === "radial" ? radialFlow : cardFlow;
+  const { nodes, onNodesChange, settleNonce } = useForceLayout(flow, view, motion);
   const edges = flow.edges;
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n as AppNode])), [nodes]);
-  const peekNode = isRadial ? byId.get(hoveredId ?? pinnedId ?? "") : undefined;
+  const peekNode = isCircle ? byId.get(hoveredId ?? pinnedId ?? "") : undefined;
 
   // Suggest the radial overview once the card graph crosses the legibility threshold (once).
   const [suggested, setSuggested] = useState(false);
@@ -135,22 +143,22 @@ export default function FactGraphCanvas({
             nodes={nodes}
             onNodesChange={onNodesChange}
             edges={edges}
-            nodeTypes={isRadial ? circleNodeTypes : nodeTypes}
-            edgeTypes={isRadial ? radialEdgeTypes : undefined}
+            nodeTypes={isCircle ? circleNodeTypes : nodeTypes}
+            edgeTypes={isCircle ? radialEdgeTypes : undefined}
             fitView
             fitViewOptions={{ padding: 0.15 }}
             minZoom={0.2}
             maxZoom={1.5}
             onlyRenderVisibleElements
-            nodesDraggable={!isRadial}
+            nodesDraggable={!isCircle}
             proOptions={{ hideAttribution: true }}
             // vt-sim-active turns off the per-node CSS transform transition while physics owns
             // motion — the simulation writes positions every frame, so a CSS tween would fight it.
             className={`bg-transparent${motion ? " vt-sim-active" : ""}`}
-            onNodeMouseEnter={(_, n) => isRadial && setHoveredId(n.id)}
-            onNodeMouseLeave={() => isRadial && setHoveredId(null)}
+            onNodeMouseEnter={(_, n) => isCircle && setHoveredId(n.id)}
+            onNodeMouseLeave={() => isCircle && setHoveredId(null)}
             onNodeClick={(_, n) => {
-              if (!isRadial) return;
+              if (!isCircle) return;
               setPinnedId((prev) => (prev === n.id ? null : n.id));
             }}
             onPaneClick={() => {
@@ -173,9 +181,9 @@ export default function FactGraphCanvas({
             )}
 
             {/* Reading-order orientation for the left-to-right card flow (#25): name the four lanes
-              so SOURCE → CLAIMS → QUESTIONS → EVIDENCE is explicit. Cards view only (the radial
-              view has no lanes); hidden on mobile where horizontal space is scarce. */}
-            {!isRadial && !isMobile && (
+              so SOURCE → CLAIMS → QUESTIONS → EVIDENCE is explicit. Cards view only (the circle
+              views have no lanes); hidden on mobile where horizontal space is scarce. */}
+            {!isCircle && !isMobile && (
               <Panel position="top-left" className="!m-2">
                 <div className="flex items-center gap-1.5 rounded-md border border-[var(--line)] bg-[var(--panel-2)]/85 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em] shadow-lg backdrop-blur">
                   {(
@@ -213,16 +221,34 @@ export default function FactGraphCanvas({
                     ◎ big graph — try radial
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    setView((v) => (v === "radial" ? "cards" : "radial"));
-                    setSuggested(true);
-                    setPinnedId(null);
-                  }}
-                  className="rounded-md border border-[var(--line)] bg-[var(--panel-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-[var(--ink-2)] shadow-lg hover:bg-[var(--line)]"
-                >
-                  {isRadial ? "▦ Cards" : "◎ Radial"}
-                </button>
+                {/* Three renderings of the same graph: Cards (dagre lanes), Radial (Constellation),
+                    Spiral (the depth-walk coil). A segmented control so all three are one tap away. */}
+                <div className="flex items-center overflow-hidden rounded-md border border-[var(--line)] shadow-lg">
+                  {(
+                    [
+                      ["cards", "▦ Cards"],
+                      ["radial", "◎ Radial"],
+                      ["spiral", "✺ Spiral"],
+                    ] as const
+                  ).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      onClick={() => {
+                        setView(mode);
+                        setSuggested(true);
+                        setPinnedId(null);
+                      }}
+                      aria-pressed={view === mode}
+                      className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider ${
+                        view === mode
+                          ? "bg-[var(--line)] text-[var(--accent)]"
+                          : "bg-[var(--panel-2)] text-[var(--ink-2)] hover:bg-[var(--line)]"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 {/* Reveals the pipeline internals (HyDE seed, agent queries, stance confidence,
                     raw fragments) live in the graph — accent-lit while on. */}
                 <button

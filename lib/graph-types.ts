@@ -21,6 +21,28 @@ export interface EvidenceItem {
   reliability: Reliability;
   sourceType: SourceType;
   stanceConfidence?: number; // 0..1
+  /**
+   * Depth-mode walk order (0 = the first source the walk visited, then 1, 2, … toward the origin).
+   * Set only by the depth gather (the agent follows links/leads one hop at a time); absent for the
+   * default breadth gather, where the sources under a question were retrieved in parallel and carry
+   * no inherent order. The spiral view reads this to wind the chain outward; nothing else depends on
+   * it, so the 4-layer topology is unchanged.
+   */
+  depth?: number;
+}
+
+/**
+ * One source the depth-mode walk visited, in order — the observable record of how the agent
+ * traced a claim toward its origin. `via` says whether the agent reached this page by following a
+ * link off the previous one ("link") or by searching for a lead the previous article named
+ * ("search", used when a page's links dead-end). Surfaced in the question trace (transparency
+ * principle); absent on a breadth run.
+ */
+export interface WalkStep {
+  depth: number; // 0-based hop index
+  domain: string;
+  url: string;
+  via: "search" | "link";
 }
 
 /**
@@ -32,6 +54,8 @@ export interface QuestionTrace {
   hydePassage: string; // the neutral hypothetical answer that seeds retrieval (HyDE)
   searchQueries: string[]; // every query the gather agent issued, in order
   gatherSummary: string; // the agent's one-line "what I found" at the end of the loop
+  /** Depth mode only: the ordered chain of sources the walk followed toward the origin. */
+  walk?: WalkStep[];
 }
 
 /** A question the system generates to resolve a Claim (QA-pair = explanation). */

@@ -192,6 +192,22 @@ function QuestionTraceBlock({ trace }: { trace: QuestionTrace }) {
           </ul>
         </div>
       )}
+      {trace.walk && trace.walk.length > 0 && (
+        <div>
+          <TraceLabel>walk → origin</TraceLabel>
+          <ol className="mt-0.5">
+            {trace.walk.map((step) => (
+              <li key={step.depth} className="text-[var(--ink-2)]">
+                <span className="text-[var(--ink-4)]">{step.depth === 0 ? "●" : "↳"}</span>{" "}
+                {step.domain}{" "}
+                <span className="text-[var(--ink-4)]">
+                  ({step.via === "link" ? "followed link" : "searched lead"})
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
       {trace.gatherSummary && (
         <div>
           <TraceLabel>summary</TraceLabel>
