@@ -29,6 +29,15 @@ export interface ModelInfo {
    * budget and requests high effort so reasoning can't starve the answer.
    */
   reasoning?: boolean;
+  /**
+   * Backend turns thinking ON by default and bills it against max_tokens (Gemini 2.5 Flash). On a
+   * tight per-stage budget the hidden reasoning eats the whole allowance and the visible content
+   * comes back empty (finish_reason "length"), which crashes the JSON parse. The OpenAI-compatible
+   * adapter sends reasoning_effort:"none" for these to switch thinking off — we don't want or need
+   * it for extraction/classification, and off is cheaper, faster, and deterministic. Mutually
+   * exclusive with `reasoning` (that path wants thinking, this one suppresses it).
+   */
+  disableThinking?: boolean;
 }
 
 // The models we expose in the UI dropdown. The entry's `provider` (+ `baseUrl`) decides which
@@ -41,7 +50,7 @@ export const MODELS = {
   "gpt-5.5": { label: "GPT-5.5", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 5, outputCost: 30, noTemperature: true }, // prettier-ignore
   "gpt-5.4-mini": { label: "GPT-5.4 mini", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.75, outputCost: 4.5, noTemperature: true }, // prettier-ignore
   "gpt-5.4-nano": { label: "GPT-5.4 nano", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.2, outputCost: 1.25, noTemperature: true }, // prettier-ignore
-  "gemini-2.5-flash": { label: "Gemini 2.5 Flash", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.3, outputCost: 2.5 }, // prettier-ignore
+  "gemini-2.5-flash": { label: "Gemini 2.5 Flash", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.3, outputCost: 2.5, disableThinking: true }, // prettier-ignore
   "gemini-2.5-flash-lite": { label: "Gemini 2.5 Flash-Lite", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.1, outputCost: 0.4 }, // prettier-ignore
   "deepseek-v4-flash": { label: "DeepSeek V4 Flash", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.14, outputCost: 0.28, reasoning: true, noTemperature: true }, // prettier-ignore
   "deepseek-v4-pro": { label: "DeepSeek V4 Pro", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.435, outputCost: 0.87, reasoning: true, noTemperature: true }, // prettier-ignore

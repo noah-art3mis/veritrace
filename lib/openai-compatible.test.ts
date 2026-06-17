@@ -209,3 +209,20 @@ describe("createOpenAICompatible with a reasoning model (DeepSeek)", () => {
     expect(body.temperature).toBe(0.5);
   });
 });
+
+describe("createOpenAICompatible with Gemini 2.5 Flash (thinking on by default)", () => {
+  // Gemini 2.5 Flash defaults thinking ON and bills the hidden reasoning against max_tokens. A
+  // tight per-stage budget then gets spent on thinking and the visible content comes back empty
+  // (finish_reason "length") — which crashes parseJSON ("flash crashes on JSON"). We send
+  // reasoning_effort:"none" to switch thinking off; flash needs no reserve since nothing reasons.
+  const FLASH_CONFIG: RunConfig = { ...baseConfig, model: "gemini-2.5-flash" };
+  const FLASH_TARGET = { ...TARGET, model: "gemini-2.5-flash" };
+
+  it("sends reasoning_effort:none and no token reserve", async () => {
+    createMock.mockResolvedValue(textResp("pong"));
+    await createOpenAICompatible(FLASH_CONFIG, FLASH_TARGET).askText("q", { maxTokens: 300 });
+    const body = createMock.mock.calls[0][0];
+    expect(body.reasoning_effort).toBe("none");
+    expect(body.max_tokens).toBe(300);
+  });
+});
