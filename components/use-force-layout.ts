@@ -28,7 +28,10 @@ import {
 import type { AppNode } from "@/lib/graph-to-flow";
 import { seedPosition, type AnchorFlow, type ForceNodeMeta } from "@/lib/force-layout";
 
-type ViewMode = "cards" | "radial";
+// "radial" (concentric Constellation) and "spiral" (depth-walk coil) are both circle views driven by
+// the same physics; only their anchor geometry differs (rings vs coil). "cards" uses static dagre.
+type ViewMode = "cards" | "radial" | "spiral";
+const isCircleView = (v: ViewMode) => v !== "cards";
 
 /** A d3 simulation node: our meta plus the mutable position/velocity d3 maintains. */
 type SimNode = ForceNodeMeta & {
@@ -98,7 +101,7 @@ function renderNode(
     width: meta.w,
     initialWidth: meta.w,
     initialHeight: meta.h,
-    style: view === "radial" ? { width: meta.w, height: meta.h } : { width: meta.w },
+    style: isCircleView(view) ? { width: meta.w, height: meta.h } : { width: meta.w },
   } as AppNode;
 }
 
@@ -125,9 +128,9 @@ export function useForceLayout(flow: AnchorFlow, view: ViewMode, motion: boolean
   const lastTopoRef = useRef<string>("");
   const lastViewRef = useRef<ViewMode>(view);
 
-  // Force runs in the radial view only; cards use the static dagre placement below.
+  // Force runs in the circle views (radial + spiral); cards use the static dagre placement below.
   const enabled =
-    view === "radial" && motion && flow.anchors.length > 0 && flow.anchors.length <= HARD_CAP;
+    isCircleView(view) && motion && flow.anchors.length > 0 && flow.anchors.length <= HARD_CAP;
 
   const stopLoop = useCallback(() => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -248,7 +251,7 @@ export function useForceLayout(flow: AnchorFlow, view: ViewMode, motion: boolean
     }
     simNodesRef.current = sims;
 
-    const F = RADIAL_FORCES; // enabled ⇒ radial view (cards returned via the static branch above)
+    const F = RADIAL_FORCES; // enabled ⇒ a circle view (cards returned via the static branch above)
     const links: SimulationLinkDatum<SimNode>[] = flow.linkEdges
       .filter((e) => sims.has(e.source) && sims.has(e.target))
       .map((e) => ({ source: e.source, target: e.target }));

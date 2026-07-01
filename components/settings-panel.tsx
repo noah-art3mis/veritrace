@@ -36,6 +36,12 @@ export interface Settings {
   maxChars: number;
   /** Use Exa's agentic "deep" search — higher recall on hard claims, slower and pricier. */
   deepSearch: boolean;
+  /**
+   * Depth mode: trace each claim toward its origin by following sources' outbound links (and
+   * chasing the lead an article names when links dead-end) instead of fanning out parallel
+   * queries. Renders as the spiral view. Off ⇒ the default breadth gather.
+   */
+  depthMode: boolean;
   /** Restrict retrieval to an Exa content category for cleaner extraction; "" = no restriction. */
   category: ExaCategory | "";
   /** Prefer freshly-crawled content over Exa's cache — fresher for breaking news, but slower. */
@@ -72,6 +78,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxSources: DEFAULT_SOURCES,
   maxChars: DEFAULT_CHARS,
   deepSearch: false,
+  depthMode: false,
   category: "",
   preferFresh: false,
   factCheckShortCircuit: false,
@@ -360,6 +367,21 @@ export function SettingsPanel({
               />
               <span className={helpCls}>
                 agentic multi-step retrieval · higher recall, slower, pricier
+              </span>
+            </div>
+
+            {/* Depth mode — trace each claim to its origin by following links, vs the breadth fan-out */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Depth mode</label>
+              <Toggle
+                checked={settings.depthMode}
+                onClick={() => set("depthMode", !settings.depthMode)}
+                onLabel="Depth"
+                offLabel="Breadth"
+              />
+              <span className={helpCls}>
+                follow each source&apos;s links toward the originating report instead of fanning out
+                · renders as the spiral view
               </span>
             </div>
 

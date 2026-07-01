@@ -1,9 +1,10 @@
 import type { ClaimItem, QuestionItem, EvidenceItem, Verdict, QuestionTrace } from "../graph-types";
 import type { SearchOptions, RawEvidence } from "../exa";
 import type { ToolDef } from "../anthropic";
-import type { PipelineDeps } from "./deps";
+import type { PipelineDeps, DepthDeps } from "./deps";
 import { classifyEvidence } from "./classify";
 import { expandQuery } from "./expand";
+import { gatherDepth } from "./depth";
 import { reciprocalRankFusion } from "./rrf";
 import { isDeciding } from "./verdict";
 
@@ -105,6 +106,10 @@ export async function resolveQuestion(
   question: QuestionItem,
   deps: PipelineDeps,
 ): Promise<ResolvedQuestion> {
+  // Depth mode (#depth): swap the breadth fan-out below for a depth-first walk toward the origin.
+  // Shares the same classify → cap → trace tail, so only the gather differs between the two modes.
+  if (deps.depth) return resolveQuestionDepth(claim, question, { ...deps, depth: deps.depth });
+
   const window = dateWindow(claim.date);
   const collected = new Map<string, RawEvidence>();
   const searchQueries: string[] = [];
@@ -174,6 +179,47 @@ export async function resolveQuestion(
     gatherSummary: result.text.trim(),
   };
   return { evidence, trace, retrieval };
+}
+
+/**
+ * Depth-mode resolve: walk the claim toward its origin (gatherDepth) instead of fanning out, then
+ * run the SAME echo-filter → (optional rerank) → classify → cap tail as the breadth path, so the
+ * verdict rules stay identical and only the gather differs. We re-attach each source's hop index
+ * (`depth`) onto the classified evidence by URL, and record the walk on the trace so the chain from
+ * echo to origin is observable. The HyDE hypothetical still seeds the first search and rides the
+ * trace; the walk takes over from there.
+ */
+async function resolveQuestionDepth(
+  claim: ClaimItem,
+  question: QuestionItem,
+  deps: PipelineDeps & { depth: DepthDeps },
+): Promise<ResolvedQuestion> {
+  const window = dateWindow(claim.date);
+  const { seed, hypothetical } = await expandQuery(claim, question, deps.ask);
+
+  const { gathered, depthByUrl, walk, queries, summary } = await gatherDepth(
+    claim,
+    question,
+    seed,
+    window,
+    deps,
+  );
+
+  let candidates = dropClaimEchoes(claim.text, gathered);
+  if (deps.rerank) candidates = await deps.rerank.rerank([seed], candidates, RERANK_POOL);
+  const classified = await classifyEvidence(claim, question, candidates, deps.ask);
+  // Re-attach the walk's hop index by URL (classify preserves url) so the spiral can order the
+  // chain; sources the echo-filter/cap dropped simply fall away with their depth.
+  const withDepth = classified.map((e) => ({ ...e, depth: depthByUrl.get(e.url) }));
+  const evidence = rankAndCapEvidence(withDepth, EVIDENCE_PER_QUESTION_CAP);
+
+  const trace: QuestionTrace = {
+    hydePassage: hypothetical,
+    searchQueries: queries,
+    gatherSummary: summary,
+    walk,
+  };
+  return { evidence, trace };
 }
 
 // Claim-echo filter (HerO reranking.py: drop a passage when the claim is >92% of it). Circular

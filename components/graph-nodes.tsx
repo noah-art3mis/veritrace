@@ -135,6 +135,14 @@ function ReliabilityMeter({ reliability }: { reliability: Reliability }) {
 
 const cardShadow = "0 16px 36px -20px rgba(0,0,0,0.85)";
 
+// Card width by context. In a graph node (`withHandles`) the width is fixed — the dagre/force
+// layout measures it, so it must stay exact. In the radial detail panel (`withHandles={false}`)
+// the card sits in a bottom-center overlay above the canvas; on a phone its fixed width is wider
+// than the screen and gets clipped, so cap it to the viewport and let the text wrap to fit (#27).
+function cardWidth(intrinsic: number, withHandles: boolean): number | string {
+  return withHandles ? intrinsic : `min(${intrinsic}px, 88vw)`;
+}
+
 /* The graded support ratio — "X of N supported", with the rest broken down (SAFE F1@K). */
 function SupportRatio({ tally }: { tally: ClaimTally }) {
   if (tally.total === 0 && !tally.dropped) return null;
@@ -192,6 +200,22 @@ function QuestionTraceBlock({ trace }: { trace: QuestionTrace }) {
           </ul>
         </div>
       )}
+      {trace.walk && trace.walk.length > 0 && (
+        <div>
+          <TraceLabel>walk → origin</TraceLabel>
+          <ol className="mt-0.5">
+            {trace.walk.map((step) => (
+              <li key={step.depth} className="text-[var(--ink-2)]">
+                <span className="text-[var(--ink-4)]">{step.depth === 0 ? "●" : "↳"}</span>{" "}
+                {step.domain}{" "}
+                <span className="text-[var(--ink-4)]">
+                  ({step.via === "link" ? "followed link" : "searched lead"})
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
       {trace.gatherSummary && (
         <div>
           <TraceLabel>summary</TraceLabel>
@@ -219,7 +243,7 @@ export function SourceCard({
   return (
     <div
       className="vt-node relative rounded-lg border border-[var(--line-2)] bg-[var(--panel)] px-4 py-3.5"
-      style={{ width: 380, boxShadow: cardShadow }}
+      style={{ width: cardWidth(380, withHandles), boxShadow: cardShadow }}
     >
       <Ticks />
       <div className="mb-2.5 flex items-center justify-between px-1">
@@ -263,7 +287,7 @@ export function ClaimCard({
     <div
       className="vt-node relative rounded-lg border bg-[var(--panel)] py-3 pl-4 pr-3.5"
       style={{
-        width: 320,
+        width: cardWidth(320, withHandles),
         opacity: dropped ? 0.5 : 1,
         borderStyle: dropped ? "dashed" : "solid",
         borderColor: dropped ? "var(--line-2)" : m ? `${m.color}3d` : "var(--line)",
@@ -379,7 +403,7 @@ export function QuestionCard({
     <div
       className="vt-node relative overflow-hidden rounded-md border bg-[var(--panel-2)] py-2.5 pl-4 pr-3"
       style={{
-        width: 280,
+        width: cardWidth(280, withHandles),
         borderColor: searching ? "rgba(58,214,230,0.45)" : "var(--line)",
       }}
     >
@@ -436,7 +460,7 @@ export function EvidenceCard({
     <div
       className="vt-node relative rounded-lg border bg-[var(--panel)] py-3 pl-4 pr-3"
       style={{
-        width: 320,
+        width: cardWidth(320, withHandles),
         borderColor: `${stance.color}3d`,
         boxShadow: `0 0 0 1px ${stance.color}14, ${cardShadow}`,
       }}

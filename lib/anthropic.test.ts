@@ -31,6 +31,7 @@ const baseConfig: RunConfig = {
   preferFresh: false,
   factCheckShortCircuit: false,
   rerank: false,
+  depthMode: false,
 };
 
 beforeEach(() => {

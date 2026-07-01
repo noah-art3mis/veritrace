@@ -101,6 +101,7 @@ export default function Workbench() {
       maxSources: settings.maxSources,
       maxChars: settings.maxChars,
       deepSearch: settings.deepSearch,
+      depthMode: settings.depthMode,
       category: settings.category,
       preferFresh: settings.preferFresh,
       factCheckShortCircuit: settings.factCheckShortCircuit,
@@ -430,6 +431,7 @@ export default function Workbench() {
           graph={graph}
           showMinimap={settings.showMinimap}
           withholdVerdict={settings.withholdVerdict}
+          depthMode={settings.depthMode}
           onReinclude={reincludeClaim}
         />
         <RunReport

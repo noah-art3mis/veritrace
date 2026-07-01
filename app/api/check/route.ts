@@ -3,7 +3,7 @@ import { createReasoner } from "@/lib/reasoner";
 import { createSearchProvider } from "@/lib/search";
 import { createReranker } from "@/lib/pipeline/rerank";
 import { createFactCheckLookup } from "@/lib/factcheck";
-import { parseConfig } from "@/lib/run-config";
+import { parseConfig, MAX_DEPTH_HOPS, DEPTH_LINKS_PER_SOURCE } from "@/lib/run-config";
 import { apiRateLimiter, clientIp } from "@/lib/rate-limit";
 import { friendlyProviderError } from "@/lib/provider-errors";
 
@@ -56,18 +56,26 @@ export async function POST(request: Request) {
   let deps;
   try {
     const config = parseConfig(body.config);
+    const searchProvider = createSearchProvider({
+      exaKey: config.exaKey,
+      numResults: config.maxSources,
+      maxChars: config.maxChars,
+      deepSearch: config.deepSearch,
+      category: config.category,
+      preferFresh: config.preferFresh,
+      linksPerSource: DEPTH_LINKS_PER_SOURCE,
+    });
     deps = {
       ask: createReasoner(config),
-      search: createSearchProvider({
-        exaKey: config.exaKey,
-        numResults: config.maxSources,
-        maxChars: config.maxChars,
-        deepSearch: config.deepSearch,
-        category: config.category,
-        preferFresh: config.preferFresh,
-      }).search,
+      search: searchProvider.search,
       maxClaims: config.maxClaims,
       maxQuestions: config.maxQuestions,
+      // Opt-in depth mode (#depth): walk each claim toward its origin via link-following instead of
+      // the breadth fan-out. Built only when the flag is on AND the backend can follow links;
+      // absent otherwise, so the default run keeps the breadth gather.
+      ...(config.depthMode && searchProvider.fetchSource
+        ? { depth: { fetchSource: searchProvider.fetchSource, maxHops: MAX_DEPTH_HOPS } }
+        : {}),
       // Opt-in embedding re-rank (#57). Built only when the flag is on AND a Cohere key resolves;
       // absent otherwise, so the pipeline keeps its no-embeddings de-novo path by default.
       ...(config.rerank

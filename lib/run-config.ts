@@ -133,6 +133,20 @@ export const DEFAULT_CHARS = 6000;
 export const EXA_CATEGORIES = ["news", "research paper", "pdf"] as const;
 export type ExaCategory = (typeof EXA_CATEGORIES)[number];
 
+// Depth mode (the breadth↔depth alternative). Instead of fanning out parallel queries under a
+// question, the gather agent walks ONE source toward its origin: it follows the most promising
+// outbound link (after dedup), and when a page dead-ends it searches for the lead the article
+// names (the originating outlet / agency). These bound that model-driven walk.
+//
+//   - MAX_DEPTH_HOPS: how many links the walk may follow before it stops and judges what it holds —
+//     the depth analogue of the breadth gather's MIN_DECIDING bar (resolve.ts). The walk reaches at
+//     most this far from the first source toward the origin.
+//   - DEPTH_LINKS_PER_SOURCE: how many outbound links we pull off each visited page (Exa
+//     extras.links). The agent picks the most origin-likely one from this frontier; the rest are
+//     deduped away so the walk never loops back on a page it has already read.
+export const MAX_DEPTH_HOPS = 6;
+export const DEPTH_LINKS_PER_SOURCE = 12;
+
 export interface RunConfig {
   model: ModelId;
   /** 0..1. Lower = more deterministic. Ignored (forced to 1) when thinking is on. */
@@ -148,6 +162,14 @@ export interface RunConfig {
   maxChars: number;
   /** Use Exa's agentic "deep" search (higher recall, slower, pricier) instead of standard "auto". */
   deepSearch: boolean;
+  /**
+   * Depth mode (#depth): swap the breadth gather (fan out parallel queries) for a depth-first
+   * walk that follows each source's outbound links toward the originating source, and searches
+   * for the lead an article names when its links dead-end. Off ⇒ the default breadth gather.
+   * The graph stays 4 layers either way — depth lives in the retrieval *process*, recorded as the
+   * walk order on each evidence item — so this is a gather *strategy*, not a new graph rank.
+   */
+  depthMode: boolean;
   /** Restrict retrieval to an Exa content category for cleaner extraction; "" = no restriction. */
   category: ExaCategory | "";
   /** Prefer freshly-crawled content over Exa's cache — fresher for breaking news, but slower. */
@@ -198,6 +220,7 @@ export const DEFAULT_CONFIG: RunConfig = {
   preferFresh: false,
   factCheckShortCircuit: false,
   rerank: false,
+  depthMode: false,
 };
 
 function isModelId(value: unknown): value is ModelId {
@@ -297,6 +320,7 @@ export function parseConfig(input: unknown): RunConfig {
     preferFresh: Boolean(raw.preferFresh),
     factCheckShortCircuit: Boolean(raw.factCheckShortCircuit),
     rerank: Boolean(raw.rerank),
+    depthMode: Boolean(raw.depthMode),
     anthropicKey: cleanKey(raw.anthropicKey),
     openaiKey: cleanKey(raw.openaiKey),
     geminiKey: cleanKey(raw.geminiKey),
