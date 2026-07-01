@@ -2,6 +2,8 @@ import type { ClaimItem, QuestionItem, WalkStep } from "../graph-types";
 import type { RawEvidence, SearchOptions } from "../exa";
 import type { ToolDef } from "../anthropic";
 import type { PipelineDeps, DepthDeps } from "./deps";
+// Type-only import (erased at runtime, so no cycle with resolve.ts, which imports gatherDepth).
+import type { RetrievalOutcome } from "./resolve";
 
 // Depth-first gather — the breadth gather's twin (resolve.ts). The breadth loop fans OUT: it issues
 // several parallel queries under one question and keeps every reliable source it finds. The depth
@@ -118,6 +120,8 @@ export interface DepthGather {
   queries: string[];
   /** The agent's closing one-line summary of the chain it followed. */
   summary: string;
+  /** Search tally so a wholesale retrieval outage is detectable in depth mode too (#100). */
+  retrieval: RetrievalOutcome;
 }
 
 /**
@@ -141,11 +145,16 @@ export async function gatherDepth(
   const depthByUrl = new Map<string, number>();
   const walk: WalkStep[] = [];
   const queries: string[] = [];
+  // Count every search + its outcome so the orchestrator can spot a wholesale retrieval outage (#100)
+  // in depth mode as well — the catch below swallows failures (like breadth), which would otherwise
+  // masquerade as a plain no-origin-found NEI.
+  const retrieval: RetrievalOutcome = { searches: 0, failures: 0 };
 
   const opts: SearchOptions = { ...window, highlightQuery: question.text };
 
   async function runSearch(query: string): Promise<RawEvidence[]> {
     queries.push(query);
+    retrieval.searches++;
     try {
       const results = await deps.search(query, opts);
       for (const r of results) {
@@ -153,7 +162,9 @@ export async function gatherDepth(
         fromSearch.add(normalizeUrl(r.url));
       }
       return results;
-    } catch {
+    } catch (err) {
+      retrieval.failures++;
+      retrieval.lastError = err instanceof Error ? err.message : String(err);
       return [];
     }
   }
@@ -239,5 +250,6 @@ export async function gatherDepth(
     walk,
     queries,
     summary: result.text.trim(),
+    retrieval,
   };
 }

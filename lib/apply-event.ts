@@ -44,6 +44,7 @@ export function applyEvent(graph: FactGraph, ev: PipelineEvent): FactGraph {
       };
     case "source_verdict":
       return { ...graph, source: { ...graph.source, verdict: ev.verdict, tally: ev.tally } };
+    case "warning":
     case "error":
     case "done":
       return graph;

@@ -59,6 +59,9 @@ export default function Workbench() {
   const [graph, setGraph] = useState<FactGraph>(MOCK_GRAPH);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Non-fatal run advisory (#100), e.g. every web search failed so the graph degraded to all-NEI.
+  // Shown as a dismissible banner over the still-rendered graph, distinct from the fatal-error modal.
+  const [warning, setWarning] = useState<string | null>(null);
   const [runId, setRunId] = useState(0);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
@@ -158,6 +161,7 @@ export default function Workbench() {
     if (!trimmed || loading) return;
     setLoading(true);
     setError(null);
+    setWarning(null);
     // On mobile, hand the small screen to the evidence graph the moment a run starts — the
     // input zone has done its job (#6). Desktop keeps it open (the collapse is md:-inert anyway).
     if (isMobile) setInputOpen(false);
@@ -190,7 +194,8 @@ export default function Workbench() {
           if (!line.trim()) continue;
           const ev = JSON.parse(line) as PipelineEvent;
           if (ev.type === "error") throw new Error(ev.message);
-          setGraph((g) => applyEvent(g, ev));
+          if (ev.type === "warning") setWarning(ev.message);
+          else setGraph((g) => applyEvent(g, ev));
         }
       }
     } catch (err) {
@@ -395,6 +400,30 @@ export default function Workbench() {
         onDismiss={() => setError(null)}
         onRetry={() => check(text)}
       />
+
+      {/* Non-fatal run advisory (#100): the run finished but its results are unreliable (e.g. every
+          web search errored). A banner over the graph, not a blocking modal — the graph still shows,
+          but the reader is told the verdicts can't be trusted, so an empty all-NEI graph isn't read
+          as a genuine de-novo dead end. */}
+      {warning && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 border-b border-[var(--amber,#b6822a)]/40 bg-[var(--amber,#b6822a)]/10 px-6 py-2.5 text-[12px] leading-relaxed text-[var(--ink-1)]"
+        >
+          <span aria-hidden className="mt-px shrink-0 text-[var(--amber,#b6822a)]">
+            ⚠
+          </span>
+          <p className="flex-1">{warning}</p>
+          <button
+            type="button"
+            onClick={() => setWarning(null)}
+            aria-label="Dismiss warning"
+            className="shrink-0 font-mono text-[11px] text-[var(--ink-3)] transition-colors hover:text-[var(--ink-1)]"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <main className="relative flex-1">
         <FactGraphCanvas

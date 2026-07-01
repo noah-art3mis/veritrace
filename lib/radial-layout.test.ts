@@ -72,6 +72,27 @@ describe("radialLayout", () => {
     expect(pos.get("c1-q1-e1")!.diameter).toBe(CIRCLE_DIAMETER[3]);
   });
 
+  it("clusters evidence just outside its question, not flung to the rim (#107)", () => {
+    const pos = radialLayout(graph());
+    const claimR = pos.get("c1")!.radius;
+    const qR = pos.get("c1-q1")!.radius;
+    const evR = pos.get("c1-q1-e1")!.radius;
+    // Evidence sits a SHORT hop beyond its question — closer to the question than the question is to
+    // its claim — so the parent→child spoke reads as proximity, not a long line to the outer ring.
+    expect(evR - qR).toBeGreaterThan(0); // still on a strictly outer ring (depth read intact)
+    expect(evR - qR).toBeLessThan(qR - claimR);
+  });
+
+  it("fans a question's evidence tightly around the question's own angle (#107)", () => {
+    const pos = radialLayout(graph());
+    const qAngle = pos.get("c1-q1")!.angle;
+    const evAngles = ["c1-q1-e1", "c1-q1-e2", "c1-q1-e3"].map((id) => pos.get(id)!.angle);
+    // The cluster is centred on the question (symmetric fan), so the question's angle is the mean of
+    // its evidence angles rather than sitting off to one side.
+    const mean = evAngles.reduce((s, a) => s + a, 0) / evAngles.length;
+    expect(Math.abs(mean - qAngle)).toBeLessThan(1e-9);
+  });
+
   it("allocates a wider angular wedge to the claim with more evidence (leaf-weighted)", () => {
     const pos = radialLayout(graph());
     const c1 = ["c1-q1-e1", "c1-q1-e2", "c1-q1-e3"].map((id) => pos.get(id)!.angle);

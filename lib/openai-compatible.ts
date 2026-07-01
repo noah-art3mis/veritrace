@@ -1,8 +1,9 @@
 import OpenAI from "openai";
 import {
-  isReasoningModel,
   REASONING_TOKEN_RESERVE,
   supportsTemperature,
+  thinkingActive,
+  thinkingPolicy,
   type RunConfig,
 } from "./run-config";
 import { askJSONWithRepair, type JSONOpts } from "./ask-json";
@@ -33,13 +34,25 @@ export function createOpenAICompatible(
   // Reasoning models (gpt-5.x) reject a custom temperature; omit it for those. Gemini accepts it.
   const temperature = supportsTemperature(config.model) ? config.temperature : undefined;
 
-  // DeepSeek V4 reasons before answering and bills the reasoning against max_tokens. Add a reserve
-  // on top of the caller's answer budget (mirrors anthropic.ts) and ask for high effort, so a tight
-  // per-stage budget can't be entirely consumed by reasoning (which leaves content === "").
-  const reasoning = isReasoningModel(config.model);
-  const reasoningParams = reasoning ? ({ reasoning_effort: "high" } as const) : {};
+  // Thinking policy (#102, #110). Some OpenAI-compatible backends reason before answering and bill
+  // the reasoning_tokens against max_tokens, so a tight per-stage budget gets entirely consumed by
+  // reasoning and content comes back "" (finish_reason: "length", which crashes parseJSON). The
+  // model's policy decides whether thinking runs and how hard:
+  //   "always"   (DeepSeek V4)      → reasoning_effort "high" on every call.
+  //   "optional" (Gemini 2.5 Flash) → defaults OFF (reasoning_effort "none", the safe floor); the
+  //                                   run's `thinking` toggle turns it on at "medium" effort.
+  // Whenever thinking is active we add REASONING_TOKEN_RESERVE on top of the caller's answer budget
+  // so reasoning can't starve the answer — the same shape as anthropic.ts (THINKING_BUDGET + maxTokens).
+  const policy = thinkingPolicy(config.model);
+  const thinkOn = thinkingActive(config.model, config.thinking);
+  const reasoningParams: { reasoning_effort?: "high" | "medium" | "none" } =
+    policy === "always"
+      ? { reasoning_effort: "high" }
+      : policy === "optional"
+        ? { reasoning_effort: thinkOn ? "medium" : "none" }
+        : {};
   const outputBudget = (answerTokens: number) =>
-    reasoning ? answerTokens + REASONING_TOKEN_RESERVE : answerTokens;
+    thinkOn ? answerTokens + REASONING_TOKEN_RESERVE : answerTokens;
 
   function buildMessages(
     prompt: string,

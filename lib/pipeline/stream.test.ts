@@ -45,9 +45,20 @@ function evidence(questionId: string, stance: Stance): EvidenceItem {
   };
 }
 
-// resolveQuestion now returns { evidence, trace }; wrap evidence arrays for the mocks.
-function resolved(evidence: EvidenceItem[]) {
-  return { evidence, trace: { hydePassage: "h", searchQueries: ["q"], gatherSummary: "s" } };
+// resolveQuestion returns { evidence, trace, retrieval }; wrap evidence arrays for the mocks.
+// `retrieval` defaults to one clean (non-failing) search — override it to model an outage (#100).
+function resolved(
+  evidence: EvidenceItem[],
+  retrieval: { searches: number; failures: number; lastError?: string } = {
+    searches: 1,
+    failures: 0,
+  },
+) {
+  return {
+    evidence,
+    trace: { hydePassage: "h", searchQueries: ["q"], gatherSummary: "s" },
+    retrieval,
+  };
 }
 
 function claim(id: string, checkable = true): ClaimItem {
@@ -173,6 +184,46 @@ describe("streamPipeline verdict resolution", () => {
         e.type === "question_trace" && e.id === "c1-q2",
     );
     expect(trace?.trace.gatherSummary).toMatch(/failed|timedout/i);
+  });
+});
+
+describe("streamPipeline wholesale-retrieval-failure warning (#100)", () => {
+  it("emits a warning when EVERY search in the run errored (and still completes)", async () => {
+    extractClaims.mockResolvedValue([claim("c1")]);
+    generateQuestions.mockResolvedValue([question("c1", 1), question("c1", 2)]);
+    // Both questions resolve with no evidence because all their searches errored (e.g. Exa credits
+    // exhausted) — the failures are swallowed per-question (#70), so the run still finishes.
+    resolveQuestion.mockResolvedValue(
+      resolved([], { searches: 3, failures: 3, lastError: "exceeded your credits limit" }),
+    );
+
+    const events = await drain("post");
+    const warning = events.find(
+      (e): e is Extract<PipelineEvent, { type: "warning" }> => e.type === "warning",
+    );
+    expect(warning).toBeDefined();
+    expect(warning?.message).toMatch(/retrieval is failing/i);
+    expect(warning?.message).toContain("exceeded your credits limit");
+    // Non-fatal: the run still reaches its finale.
+    expect(events.some((e) => e.type === "source_verdict")).toBe(true);
+    expect(events[events.length - 1].type).toBe("done");
+    // The warning precedes the finale so the banner is up before the verdict lands.
+    const warnIdx = events.findIndex((e) => e.type === "warning");
+    const verdictIdx = events.findIndex((e) => e.type === "source_verdict");
+    expect(warnIdx).toBeLessThan(verdictIdx);
+  });
+
+  it("stays silent when at least one search succeeded (a genuine NEI, not an outage)", async () => {
+    extractClaims.mockResolvedValue([claim("c1")]);
+    generateQuestions.mockResolvedValue([question("c1", 1), question("c1", 2)]);
+    resolveQuestion
+      .mockResolvedValueOnce(resolved([], { searches: 2, failures: 2, lastError: "boom" }))
+      .mockResolvedValueOnce(
+        resolved([evidence("c1-q2", "supports")], { searches: 2, failures: 0 }),
+      );
+
+    const events = await drain("post");
+    expect(events.some((e) => e.type === "warning")).toBe(false);
   });
 });
 

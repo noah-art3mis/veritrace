@@ -25,11 +25,19 @@ export interface RadialPosition {
 // Depth-only size encoding (ADR 0003): Source largest → Evidence smallest.
 export const CIRCLE_DIAMETER: Record<RadialDepth, number> = { 0: 64, 1: 44, 2: 30, 3: 20 };
 
-// Arc each Evidence slot reserves on the rim (diameter + breathing gap). The outer radius grows
-// with the slot count so a big investigation spreads outward instead of crowding — fitView then
-// frames the whole constellation.
+// Arc each Evidence slot reserves (diameter + breathing gap). The outer radius grows with the slot
+// count so a big investigation spreads its claims/questions outward instead of crowding — fitView
+// then frames the whole constellation.
 const EV_PITCH = CIRCLE_DIAMETER[3] + 16;
 const MIN_OUTER_RADIUS = 240;
+
+// Evidence no longer rides the rim on a long spoke (#107): each question's sources cluster as a
+// tight halo just OUTSIDE the question circle. The gap clears the question circle (radius 15) and an
+// evidence circle (radius 10) with breathing room, so the parent→child link reads as proximity, not
+// a long radial line — while evidence still sits on a ring strictly outside its question (depth read
+// intact). The halo is fanned around the question's own angle, never wider than its wedge so two
+// questions' sources can't intermix.
+const EV_CLUSTER_GAP = 52;
 
 // A branch that hasn't produced children yet (mid-stream) still owns a slot, so circles don't
 // jump rings when their first child lands — they just subdivide an already-reserved wedge.
@@ -65,7 +73,7 @@ export function radialLayout(graph: FactGraph): Map<string, RadialPosition> {
     0: 0,
     1: outerRadius * 0.34,
     2: outerRadius * 0.67,
-    3: outerRadius,
+    3: outerRadius * 0.67 + EV_CLUSTER_GAP, // a short hop beyond the question, not at the rim (#107)
   };
 
   const place = (id: string, angle: number, depth: RadialDepth) => {
@@ -100,8 +108,13 @@ export function radialLayout(graph: FactGraph): Map<string, RadialPosition> {
 
       const evs = evidenceByQuestion.get(q.id) ?? [];
       if (evs.length > 0) {
-        const step = (qEnd - qStart) / evs.length;
-        evs.forEach((e, i) => place(e.id, qStart + step * (i + 0.5), 3));
+        // Fan the sources around the question's OWN angle as a tight cluster (#107). Pitch is just
+        // enough to clear neighbouring circles at the cluster radius, but never wider than the
+        // question's wedge — so a generous wedge yields a compact halo, a cramped one fills exactly.
+        const qAngle = (qStart + qEnd) / 2;
+        const pitch = Math.min(EV_PITCH / ring[3], (qEnd - qStart) / evs.length);
+        const mid = (evs.length - 1) / 2;
+        evs.forEach((e, i) => place(e.id, qAngle + (i - mid) * pitch, 3));
       }
       qCursor = qEnd;
     }
