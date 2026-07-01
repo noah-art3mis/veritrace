@@ -197,7 +197,7 @@ async function resolveQuestionDepth(
   const window = dateWindow(claim.date);
   const { seed, hypothetical } = await expandQuery(claim, question, deps.ask);
 
-  const { gathered, depthByUrl, walk, queries, summary } = await gatherDepth(
+  const { gathered, depthByUrl, walk, queries, summary, retrieval } = await gatherDepth(
     claim,
     question,
     seed,
@@ -219,7 +219,7 @@ async function resolveQuestionDepth(
     gatherSummary: summary,
     walk,
   };
-  return { evidence, trace };
+  return { evidence, trace, retrieval };
 }
 
 // Claim-echo filter (HerO reranking.py: drop a passage when the claim is >92% of it). Circular
