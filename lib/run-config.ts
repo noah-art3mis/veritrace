@@ -48,6 +48,7 @@ export const MODELS = {
   "claude-sonnet-4-6": { label: "Sonnet 4.6", provider: "anthropic", inputCost: 3, outputCost: 15 },
   "claude-haiku-4-5-20251001": { label: "Haiku 4.5", provider: "anthropic", inputCost: 1, outputCost: 5 }, // prettier-ignore
   "gpt-5.5": { label: "GPT-5.5", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 5, outputCost: 30, noTemperature: true }, // prettier-ignore
+  "gpt-5.6-luna": { label: "GPT-5.6 Luna", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.2, outputCost: 1.2, noTemperature: true }, // prettier-ignore
   "gpt-5.4-mini": { label: "GPT-5.4 mini", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.75, outputCost: 4.5, noTemperature: true }, // prettier-ignore
   "gpt-5.4-nano": { label: "GPT-5.4 nano", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.2, outputCost: 1.25, noTemperature: true }, // prettier-ignore
   "gemini-2.5-flash": { label: "Gemini 2.5 Flash", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.3, outputCost: 2.5, thinkingPolicy: "optional" }, // prettier-ignore
