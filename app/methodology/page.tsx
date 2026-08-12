@@ -93,6 +93,30 @@ const REFERENCES: Ref[] = [
     hrefLabel: "arXiv:2410.23850",
   },
   {
+    key: "Ev2R",
+    title: "Ev2R — Akhtar, Schlichtkrull & Vlachos, 2025",
+    detail:
+      "LLM-judged evidence-retrieval scoring: decompose retrieved and gold evidence into atomic facts and check each side against the other (precision/recall/F1), combined with a proxy verdict-confidence score. Shows token metrics like Hungarian METEOR barely correlate with human judgment — the evidence metric VERITRACE's eval roadmap adopts.",
+    href: "https://arxiv.org/abs/2411.05375",
+    hrefLabel: "arXiv:2411.05375",
+  },
+  {
+    key: "graves",
+    title: "Anatomy of a Fact Check — Graves, 2017",
+    detail:
+      "Ethnography of professional fact-checking: choosing claims, contacting the speaker, tracing a claim to its origin, triangulating experts, and showing your work. Verdicts rest on factual coherence across individually non-decisive evidence — the practice VERITRACE's provenance tracing and inspectable graph mechanise, and the reason its verdicts stay graded rather than mechanical.",
+    href: "https://doi.org/10.1111/cccr.12163",
+    hrefLabel: "doi:10.1111/cccr.12163",
+  },
+  {
+    key: "micallef",
+    title: "True or False — Micallef, Armacost, Memon & Patil, 2022",
+    detail:
+      "Interviews with 21 professional fact-checkers across 19 countries. Practitioners accept AI assistance only when it exposes how it checked, which sources it used, and the reasoning behind the rating — and treat automated verdicts as drafts entering editorial review, not rulings. The second practice study, after Warren et al., that VERITRACE's inspectable-process design answers.",
+    href: "https://doi.org/10.1145/3512974",
+    hrefLabel: "doi:10.1145/3512974",
+  },
+  {
     key: "FEVER",
     title: "FEVER — Thorne et al., 2018",
     detail:
