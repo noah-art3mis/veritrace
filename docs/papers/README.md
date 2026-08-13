@@ -1,12 +1,41 @@
 # Reference papers
 
-The papers VERITRACE's retrieval and decomposition design draws on. PDFs are vendored here so the lineage is auditable offline and the citations in the code/ADRs can be checked against the source.
+The papers VERITRACE cites in code, ADRs, eval golds, and research docs. PDFs are vendored here so the lineage is auditable offline and the citations can be checked against the source.
+
+## Core retrieval/decomposition lineage
 
 | File                   | Paper                                                                                                | arXiv                                          | Used for                                                              |
 | ---------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
 | `hyde-2212.10496.pdf`  | Gao, Ma, Lin, Callan — _Precise Zero-Shot Dense Retrieval without Relevance Labels_ (HyDE), ACL 2023 | [2212.10496](https://arxiv.org/abs/2212.10496) | Query expansion via hypothetical documents (`lib/pipeline/expand.ts`) |
 | `hero-2410.12377.pdf`  | Yoon, Jung, Yoon, Park — _HerO at AVeriTeC: The Herd of Open LLMs_, FEVER-24 (runner-up)             | [2410.12377](https://arxiv.org/abs/2410.12377) | HyDE-FC retrieval, QA-pair generation, 4-way veracity                 |
 | `hero2-2507.11004.pdf` | Team HUMANE — _HerO 2 for Efficient Fact Verification_, AVeriTeC 2.0                                 | [2507.11004](https://arxiv.org/abs/2507.11004) | Efficiency refinements to the HerO pipeline                           |
+
+## Representations, benchmarks, and eval golds
+
+| File                           | Paper                                                               | arXiv                                          | Used for                                                                            |
+| ------------------------------ | ------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `averitec-2305.13117.pdf`      | Schlichtkrull, Guo, Vlachos — _AVeriTeC_, NeurIPS 2023              | [2305.13117](https://arxiv.org/abs/2305.13117) | 4-way verdict vocabulary, QA-pair shape; eval golds (ADR 0002, `evals/golden/`)     |
+| `averitec-task-2410.23850.pdf` | Schlichtkrull et al. — _The AVeriTeC Shared Task_, FEVER-24         | [2410.23850](https://arxiv.org/abs/2410.23850) | AVeriTeC score / hu-METEOR evaluation protocol (research doc 121)                   |
+| `fever-1803.05355.pdf`         | Thorne, Vlachos, Christodoulopoulos, Mittal — _FEVER_, NAACL 2018   | [1803.05355](https://arxiv.org/abs/1803.05355) | The older 3-way claim + evidence-set standard (research doc 121)                    |
+| `feverous-2106.05707.pdf`      | Aly et al. — _FEVEROUS_, NeurIPS 2021                               | [2106.05707](https://arxiv.org/abs/2106.05707) | Structured+unstructured evidence variant of FEVER (research doc 121)                |
+| `multifc-1909.03242.pdf`       | Augenstein et al. — _MultiFC_, EMNLP 2019                           | [1909.03242](https://arxiv.org/abs/1909.03242) | Real-world multi-domain golds candidate (`evals/golden/README.md`)                  |
+| `factscore-2305.14251.pdf`     | Min et al. — _FActScore_, EMNLP 2023                                | [2305.14251](https://arxiv.org/abs/2305.14251) | Atomic-fact decomposition + support ratio; #15 divergence (`lib/pipeline/audit.ts`) |
+| `safe-2403.18802.pdf`          | Wei et al. — _Long-form Factuality in Large Language Models_ (SAFE) | [2403.18802](https://arxiv.org/abs/2403.18802) | SAFE-style decompose (#52/#73), open-web successor to FActScore                     |
+
+## Practitioner knowledge and expert modules
+
+| File                    | Paper                                                                       | arXiv                                          | Used for                                                                |
+| ----------------------- | --------------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------- |
+| `xtroll-2508.16021.pdf` | Tian, Zhang, Kim, Biggs, Rizoiu — _X-Troll_, CIKM 2025                      | [2508.16021](https://arxiv.org/abs/2508.16021) | Expert modules + gate design study (issue #122, research doc 122)       |
+| `lora-2106.09685.pdf`   | Hu et al. — _LoRA: Low-Rank Adaptation of Large Language Models_, ICLR 2022 | [2106.09685](https://arxiv.org/abs/2106.09685) | The adapter mechanism X-Troll's experts are built on (research doc 122) |
+| `warren-2502.09083.pdf` | Warren, Shklovski, Augenstein — _Show Me the Work_, CHI 2025                | [2502.09083](https://arxiv.org/abs/2502.09083) | Fact-checkers' explainability requirements (research doc 122)           |
+
+## Landscape
+
+| File                            | Paper                                                                               | arXiv                                          | Used for                                                      |
+| ------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------- |
+| `hoaxy-1603.01511.pdf`          | Shao, Ciampaglia, Flammini, Menczer — _Hoaxy_, WWW 2016                             | [1603.01511](https://arxiv.org/abs/1603.01511) | Misinformation-tracking platform mechanism (research doc 123) |
+| `reuters-tracer-1711.04068.pdf` | Liu et al. — _Reuters Tracer: Toward Automated News Production_, IEEE Big Data 2017 | [1711.04068](https://arxiv.org/abs/1711.04068) | Newsroom-scale claim detection precedent (research doc 123)   |
 
 ## What these papers actually do (verified against the PDFs, 2026-05-31)
 
