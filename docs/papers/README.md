@@ -32,10 +32,12 @@ The papers VERITRACE cites in code, ADRs, eval golds, and research docs. PDFs ar
 
 ## Landscape
 
-| File                            | Paper                                                                               | arXiv                                          | Used for                                                      |
-| ------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------- |
-| `hoaxy-1603.01511.pdf`          | Shao, Ciampaglia, Flammini, Menczer — _Hoaxy_, WWW 2016                             | [1603.01511](https://arxiv.org/abs/1603.01511) | Misinformation-tracking platform mechanism (research doc 123) |
-| `reuters-tracer-1711.04068.pdf` | Liu et al. — _Reuters Tracer: Toward Automated News Production_, IEEE Big Data 2017 | [1711.04068](https://arxiv.org/abs/1711.04068) | Newsroom-scale claim detection precedent (research doc 123)   |
+| File                                                | Paper                                                                                                                    | arXiv                                                                              | Used for                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `hoaxy-1603.01511.pdf`                              | Shao, Ciampaglia, Flammini, Menczer — _Hoaxy_, WWW 2016                                                                  | [1603.01511](https://arxiv.org/abs/1603.01511)                                     | Misinformation-tracking platform mechanism (research doc 123)   |
+| `reuters-tracer-1711.04068.pdf`                     | Liu et al. — _Reuters Tracer: Toward Automated News Production_, IEEE Big Data 2017                                      | [1711.04068](https://arxiv.org/abs/1711.04068)                                     | Newsroom-scale claim detection precedent (research doc 123)     |
+| `micallef-2022-true-or-false.pdf`                   | Micallef, Armacost, Memon, Patil — _True or False: Studying the Work Practices of Professional Fact-Checkers_, CSCW 2022 | [DOI 10.1145/3512974](https://dl.acm.org/doi/10.1145/3512974)                      | Practitioner-workflow anchor paper (research doc 123)           |
+| `diakopoulos-2020-computational-news-discovery.pdf` | Diakopoulos — _Computational News Discovery_, Digital Journalism 2020                                                    | [DOI 10.1080/21670811.2020.1736946](https://doi.org/10.1080/21670811.2020.1736946) | Editorial-orientation-algorithm anchor paper (research doc 123) |
 
 ## What these papers actually do (verified against the PDFs, 2026-05-31)
 
