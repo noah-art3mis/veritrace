@@ -40,7 +40,7 @@ export type ModelId = keyof typeof MODELS;
 
 // The cheapest curated reasoning model — default runs must stay cheap since the server's
 // gateway key pays for anonymous traffic.
-export const DEFAULT_MODEL: ModelId = "deepseek/deepseek-v4-flash";
+export const DEFAULT_MODEL: ModelId = "openai/gpt-5.6-luna";
 
 // A gateway model id: "creator/model", both segments from the character set the gateways
 // actually use (letters, digits, dot, dash, underscore, and ":variant" suffixes). Bounded
