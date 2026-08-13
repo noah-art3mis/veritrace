@@ -64,16 +64,16 @@ The single most important fact about this market changed in January 2025: Meta a
 
 ## Price points observed (first-party where available)
 
-| Tier                          | Price                | Source                                                                          |
-| ----------------------------- | -------------------- | ------------------------------------------------------------------------------- |
-| Consumer (NewsGuard app)      | $4.95/mo             | [NewsGuard FAQ](https://www.newsguardtech.com/newsguard-faq/)                    |
-| Content-marketing SaaS (Pro)  | $14.95/mo            | [Originality.ai pricing](https://originality.ai/pricing)                         |
-| Journalist seat (Factiverse)  | €25/mo               | [Factiverse pricing](https://www.factiverse.ai/pricing)                          |
-| Content-marketing enterprise  | $179/mo              | [Originality.ai pricing](https://originality.ai/pricing)                         |
-| Platform contract (Full Fact) | £353,475/yr (Meta)   | [Press Gazette, from accounts](https://pressgazette.co.uk/platforms/cost-cuts-and-new-donors-help-full-fact-weather-loss-of-1m-google-funding/) |
-| Grant, tool-scale             | $250k (GNI LatAm)    | [GNI Innovation Challenges](https://newsinitiative.withgoogle.com/resources/programs/innovation-challenges/) |
-| Grant, org-scale              | $500k–5.7M           | [Meedan/PJMF](https://meedan.org/post/patrick-j-mcgovern-foundation-pjmf-to-help-meedan-evolve-check), NSF Co-Insights |
-| Enterprise data licensing     | undisclosed, recurring | [NewsGuard solutions](https://www.newsguardtech.com/solutions/newsguard/)      |
+| Tier                          | Price                  | Source                                                                                                                                          |
+| ----------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Consumer (NewsGuard app)      | $4.95/mo               | [NewsGuard FAQ](https://www.newsguardtech.com/newsguard-faq/)                                                                                   |
+| Content-marketing SaaS (Pro)  | $14.95/mo              | [Originality.ai pricing](https://originality.ai/pricing)                                                                                        |
+| Journalist seat (Factiverse)  | €25/mo                 | [Factiverse pricing](https://www.factiverse.ai/pricing)                                                                                         |
+| Content-marketing enterprise  | $179/mo                | [Originality.ai pricing](https://originality.ai/pricing)                                                                                        |
+| Platform contract (Full Fact) | £353,475/yr (Meta)     | [Press Gazette, from accounts](https://pressgazette.co.uk/platforms/cost-cuts-and-new-donors-help-full-fact-weather-loss-of-1m-google-funding/) |
+| Grant, tool-scale             | $250k (GNI LatAm)      | [GNI Innovation Challenges](https://newsinitiative.withgoogle.com/resources/programs/innovation-challenges/)                                    |
+| Grant, org-scale              | $500k–5.7M             | [Meedan/PJMF](https://meedan.org/post/patrick-j-mcgovern-foundation-pjmf-to-help-meedan-evolve-check), NSF Co-Insights                          |
+| Enterprise data licensing     | undisclosed, recurring | [NewsGuard solutions](https://www.newsguardtech.com/solutions/newsguard/)                                                                       |
 
 ## Cross-cutting observations
 
