@@ -1,5 +1,5 @@
 import type { FactGraph, Verdict, Stance, Reliability, SourceType } from "../graph-types";
-import type { AnthropicCaller } from "../anthropic";
+import type { ReasoningProvider } from "../reasoner-types";
 import { isRelevanceDropped } from "./claim-status";
 import { VERDICT_META } from "../visuals";
 
@@ -120,7 +120,7 @@ export function summaryPrompt(graph: FactGraph): string {
 }
 
 /** Generate the narrative summary for a finished graph via one model call. */
-export async function summarizeGraph(graph: FactGraph, ask: AnthropicCaller): Promise<string> {
+export async function summarizeGraph(graph: FactGraph, ask: ReasoningProvider): Promise<string> {
   const text = await ask.askText(summaryPrompt(graph), {
     system: SUMMARY_SYSTEM,
     maxTokens: 700,

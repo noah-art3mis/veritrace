@@ -3,101 +3,74 @@
 // extended thinking is on, and which API keys to use. It is built once per request
 // from the (untrusted) client body via parseConfig, then threaded down as `deps`.
 
-// OpenAI-compatible API endpoints. The model registry below tags each non-Anthropic model with
-// the endpoint it speaks to, so picking a model also picks the backend (ADR 0004) — there is no
-// separate provider switch.
-export const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
-export const OPENAI_BASE_URL = "https://api.openai.com/v1";
-export const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+// Every model is served through ONE OpenAI-compatible gateway (ADR 0012) — OpenRouter by
+// default, overridable via env (lib/reasoner.ts) — so a model id is a gateway slug
+// ("creator/model") and there is no per-model backend or key routing. The gateway
+// normalizes each provider's reasoning/thinking dialect behind the standard params.
 
-export type Provider = "anthropic" | "openai-compatible";
-
-/**
- * Chain-of-thought policy for OpenAI-compatible backends that reason before answering and bill the
- * reasoning_tokens against max_tokens (#102, #110). Three explicit states; "absent" is the fourth:
- *   "always"   — reasons on every call (DeepSeek V4): high effort, the reserve is always added.
- *   "optional" — can reason but defaults OFF (Gemini 2.5 Flash): honors the run's `thinking` toggle;
- *                off ⇒ reasoning_effort "none" (the safe floor), on ⇒ "medium" effort + reserve.
- *   absent     — thinking is not driven by the adapter; no reasoning params are sent.
- * Whenever thinking is active the adapter (lib/openai-compatible.ts) adds REASONING_TOKEN_RESERVE on
- * top of the answer budget, mirroring the Anthropic THINKING_BUDGET path (anthropic.ts), so reasoning
- * can't consume the whole budget and leave content === "" (which crashes parseJSON).
- */
-export type ThinkingPolicy = "always" | "optional";
-
-/** One selectable model: its label, which backend serves it, and (approximate) cost. */
+/** One selectable model: its picker label and (approximate) cost. */
 export interface ModelInfo {
   label: string;
-  provider: Provider;
-  /** OpenAI-compatible endpoint (Gemini vs OpenAI vs …). Absent for the Anthropic provider. */
-  baseUrl?: string;
-  /** Approximate USD per 1M tokens — shown in the picker; verify against the provider's pricing. */
-  inputCost: number;
-  outputCost: number;
+  /** Approximate USD per 1M tokens — shown in the picker; absent (custom models) ⇒ unknown. */
+  inputCost?: number;
+  outputCost?: number;
   /** Reasoning models reject a custom temperature; for these the UI control is inert. */
   noTemperature?: boolean;
-  /** How this model's chain-of-thought is driven by the OpenAI-compatible adapter (see ThinkingPolicy). */
-  thinkingPolicy?: ThinkingPolicy;
 }
 
-// The models we expose in the UI dropdown. The entry's `provider` (+ `baseUrl`) decides which
-// backend runs — selecting the model selects the backend. Keys come from env per backend
-// (ANTHROPIC_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY). Costs are approximate USD per 1M tokens.
+// The curated models in the UI dropdown, keyed by OpenRouter slug. Curation buys a human label,
+// a cost estimate, and a verified temperature capability — any other gateway model still runs
+// via the custom-model field (parseConfig accepts any well-formed "creator/model" slug).
+// Costs are OpenRouter's USD per 1M tokens, checked 2026-08-12.
 export const MODELS = {
-  "claude-opus-4-8": { label: "Opus 4.8", provider: "anthropic", inputCost: 15, outputCost: 75, noTemperature: true }, // prettier-ignore
-  "claude-sonnet-4-6": { label: "Sonnet 4.6", provider: "anthropic", inputCost: 3, outputCost: 15 },
-  "claude-haiku-4-5-20251001": { label: "Haiku 4.5", provider: "anthropic", inputCost: 1, outputCost: 5 }, // prettier-ignore
-  "gpt-5.5": { label: "GPT-5.5", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 5, outputCost: 30, noTemperature: true }, // prettier-ignore
-  "gpt-5.4-mini": { label: "GPT-5.4 mini", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.75, outputCost: 4.5, noTemperature: true }, // prettier-ignore
-  "gpt-5.4-nano": { label: "GPT-5.4 nano", provider: "openai-compatible", baseUrl: OPENAI_BASE_URL, inputCost: 0.2, outputCost: 1.25, noTemperature: true }, // prettier-ignore
-  "gemini-2.5-flash": { label: "Gemini 2.5 Flash", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.3, outputCost: 2.5, thinkingPolicy: "optional" }, // prettier-ignore
-  "gemini-2.5-flash-lite": { label: "Gemini 2.5 Flash-Lite", provider: "openai-compatible", baseUrl: GEMINI_BASE_URL, inputCost: 0.1, outputCost: 0.4 }, // prettier-ignore
-  "deepseek-v4-flash": { label: "DeepSeek V4 Flash", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.14, outputCost: 0.28, thinkingPolicy: "always", noTemperature: true }, // prettier-ignore
-  "deepseek-v4-pro": { label: "DeepSeek V4 Pro", provider: "openai-compatible", baseUrl: DEEPSEEK_BASE_URL, inputCost: 0.435, outputCost: 0.87, thinkingPolicy: "always", noTemperature: true }, // prettier-ignore
+  "anthropic/claude-haiku-4.5": { label: "Haiku 4.5", inputCost: 1, outputCost: 5 },
+  "anthropic/claude-sonnet-5": { label: "Sonnet 5", inputCost: 2, outputCost: 10 },
+  "anthropic/claude-opus-5": { label: "Opus 5", inputCost: 5, outputCost: 25, noTemperature: true }, // prettier-ignore
+  "openai/gpt-5.5": { label: "GPT-5.5", inputCost: 5, outputCost: 30, noTemperature: true },
+  "openai/gpt-5.6-luna": { label: "GPT-5.6 Luna", inputCost: 0.1, outputCost: 0.6, noTemperature: true }, // prettier-ignore
+  "google/gemini-2.5-flash": { label: "Gemini 2.5 Flash", inputCost: 0.3, outputCost: 2.5 },
+  "google/gemini-2.5-flash-lite": { label: "Gemini 2.5 Flash-Lite", inputCost: 0.1, outputCost: 0.4 }, // prettier-ignore
+  "deepseek/deepseek-v4-flash": { label: "DeepSeek V4 Flash", inputCost: 0.14, outputCost: 0.28, noTemperature: true }, // prettier-ignore
+  "deepseek/deepseek-v4-pro": { label: "DeepSeek V4 Pro", inputCost: 1.17, outputCost: 2.34, noTemperature: true }, // prettier-ignore
+  "z-ai/glm-5.2": { label: "GLM 5.2", inputCost: 0.49, outputCost: 1.54 },
+  "moonshotai/kimi-k3": { label: "Kimi K3", inputCost: 3, outputCost: 15 },
 } as const satisfies Record<string, ModelInfo>;
 
 export type ModelId = keyof typeof MODELS;
 
-// Default to DeepSeek V4 Flash — the cheapest reasoning backend whose key is provisioned in
-// production. The selected model drives the provider (ADR 0004), so the default must point at a
-// backend the prod server actually has a key for, or every default run throws. Change freely.
-export const DEFAULT_MODEL: ModelId = "deepseek-v4-flash";
+// The cheapest curated reasoning model — default runs must stay cheap since the server's
+// gateway key pays for anonymous traffic.
+export const DEFAULT_MODEL: ModelId = "deepseek/deepseek-v4-flash";
 
-/** A model's registry entry, typed as the uniform ModelInfo (not its narrow as-const literal). */
-export function modelInfo(model: ModelId): ModelInfo {
-  return MODELS[model];
-}
+// A gateway model id: "creator/model", both segments from the character set the gateways
+// actually use (letters, digits, dot, dash, underscore, and ":variant" suffixes). Bounded
+// so an untrusted body can't smuggle arbitrary strings into the request path.
+const MODEL_ID_RE = /^[a-z0-9][\w.-]{0,39}\/[\w.:-]{1,60}$/i;
 
-/** Whether the API still accepts a `temperature` parameter for this model (reasoning models don't). */
-export function supportsTemperature(model: ModelId): boolean {
-  return !modelInfo(model).noTemperature;
-}
-
-/** This model's chain-of-thought policy (see ThinkingPolicy); absent ⇒ thinking not adapter-driven. */
-export function thinkingPolicy(model: ModelId): ThinkingPolicy | undefined {
-  return modelInfo(model).thinkingPolicy;
+/** Whether this string is a well-formed gateway model slug (curated or custom). */
+export function isWellFormedModelId(value: unknown): value is string {
+  return typeof value === "string" && MODEL_ID_RE.test(value);
 }
 
 /**
- * Whether chain-of-thought is active for this run: "always" models reason every call; "optional"
- * models reason only when the run turns `thinking` on. Drives the reasoning-token reserve and the
- * reasoning_effort the OpenAI-compatible adapter requests.
+ * A model's registry entry. Uncurated (custom) models fall back to a label-only entry:
+ * costs unknown, and temperature omitted since we can't know whether the model accepts it.
  */
-export function thinkingActive(model: ModelId, thinking: boolean): boolean {
-  const policy = thinkingPolicy(model);
-  return policy === "always" || (policy === "optional" && thinking);
+export function modelInfo(model: string): ModelInfo {
+  return (MODELS as Record<string, ModelInfo>)[model] ?? { label: model, noTemperature: true };
 }
 
-// Reasoning reserve for OpenAI-compatible thinking models. Their reasoning_tokens are billed against
-// max_tokens, so a tight answer budget gets entirely consumed by reasoning and the content comes back
-// empty (finish_reason: "length", which crashes parseJSON). When thinking is active the adapter adds
-// this on top of the caller's answer budget — the same shape as the Anthropic THINKING_BUDGET path
-// (anthropic.ts) — so reasoning can't starve the answer.
-export const REASONING_TOKEN_RESERVE = 4096;
+/** Whether the API still accepts a `temperature` parameter for this model (reasoning models don't). */
+export function supportsTemperature(model: string): boolean {
+  return !modelInfo(model).noTemperature;
+}
 
-// Extended-thinking budget. The API requires budget_tokens >= 1024 and
-// max_tokens > budget_tokens; createAnthropic adds this on top of the per-call cap.
-export const THINKING_BUDGET = 2048;
+// Reasoning headroom. Providers that reason before answering bill the reasoning tokens against
+// max_tokens, so a tight answer budget gets entirely consumed by reasoning and the content comes
+// back empty (finish_reason: "length", which crashes parseJSON). The gateway adapter adds this on
+// top of every caller's answer budget — unconditionally, since through one gateway we can't know
+// which models reason by default, and for non-reasoning models a higher cap costs nothing.
+export const REASONING_TOKEN_RESERVE = 4096;
 
 // How many atomic claims the extractor keeps. This is a legibility cap: the evidence
 // graph grows as claims × questions × sources, so more claims means a denser, slower
@@ -148,7 +121,8 @@ export const MAX_DEPTH_HOPS = 6;
 export const DEPTH_LINKS_PER_SOURCE = 12;
 
 export interface RunConfig {
-  model: ModelId;
+  /** A gateway model slug — a curated ModelId or any well-formed custom "creator/model". */
+  model: string;
   /** 0..1. Lower = more deterministic. Ignored (forced to 1) when thinking is on. */
   temperature: number;
   thinking: boolean;
@@ -189,14 +163,8 @@ export interface RunConfig {
    * path (ADR 0005); this is the heavier alternative to RRF (#56). Off / no key ⇒ no re-rank.
    */
   rerank: boolean;
-  /** User-supplied key for the Anthropic backend; blank ⇒ the server's ANTHROPIC_API_KEY env. */
-  anthropicKey?: string;
-  /** User-supplied key for the OpenAI backend; blank ⇒ the server's OPENAI_API_KEY env. */
-  openaiKey?: string;
-  /** User-supplied key for the Gemini backend; blank ⇒ the server's GEMINI_API_KEY env. */
-  geminiKey?: string;
-  /** User-supplied key for the DeepSeek backend; blank ⇒ the server's DEEPSEEK_API_KEY env. */
-  deepseekKey?: string;
+  /** User-supplied gateway key; blank ⇒ the server's OPENROUTER_API_KEY env. */
+  gatewayKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its EXA_API_KEY env. */
   exaKey?: string;
   /** User-supplied key; blank ⇒ the server falls back to its GOOGLE_FACT_CHECK_API_KEY env. */
@@ -223,10 +191,6 @@ export const DEFAULT_CONFIG: RunConfig = {
   depthMode: false,
 };
 
-function isModelId(value: unknown): value is ModelId {
-  return typeof value === "string" && value in MODELS;
-}
-
 /** Trim a key string; treat blank/whitespace or non-string as absent (env fallback). */
 function cleanKey(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -246,9 +210,13 @@ export function parseConfig(input: unknown): RunConfig {
   }
   const raw = input as Record<string, unknown>;
 
-  let model: ModelId = DEFAULT_MODEL;
+  let model: string = DEFAULT_MODEL;
   if (raw.model !== undefined) {
-    if (!isModelId(raw.model)) throw new Error(`Unknown model: ${String(raw.model)}`);
+    if (!isWellFormedModelId(raw.model)) {
+      throw new Error(
+        `Invalid model id: ${String(raw.model)} — expected a gateway slug like "creator/model".`,
+      );
+    }
     model = raw.model;
   }
 
@@ -321,10 +289,7 @@ export function parseConfig(input: unknown): RunConfig {
     factCheckShortCircuit: Boolean(raw.factCheckShortCircuit),
     rerank: Boolean(raw.rerank),
     depthMode: Boolean(raw.depthMode),
-    anthropicKey: cleanKey(raw.anthropicKey),
-    openaiKey: cleanKey(raw.openaiKey),
-    geminiKey: cleanKey(raw.geminiKey),
-    deepseekKey: cleanKey(raw.deepseekKey),
+    gatewayKey: cleanKey(raw.gatewayKey),
     exaKey: cleanKey(raw.exaKey),
     googleFactCheckKey: cleanKey(raw.googleFactCheckKey),
     cohereKey: cleanKey(raw.cohereKey),

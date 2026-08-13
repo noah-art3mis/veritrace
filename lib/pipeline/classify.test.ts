@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { AnthropicCaller } from "../anthropic";
+import type { ReasoningProvider } from "../reasoner-types";
 
 const askJSON = vi.fn();
-const ask: AnthropicCaller = { askJSON, askText: vi.fn(), askWithTools: vi.fn() };
+const ask: ReasoningProvider = { askJSON, askText: vi.fn(), askWithTools: vi.fn() };
 
 import { classifyEvidence } from "./classify";
 import type { ClaimItem, QuestionItem } from "../graph-types";

@@ -1,7 +1,7 @@
 import { jsonrepair } from "jsonrepair";
 
 // Parse JSON out of a model's text response, tolerating ```json fences and surrounding prose.
-// Shared by every ReasoningProvider (Anthropic, OpenAI-compatible, …) so the JSON-mode quirks
+// Shared by every ReasoningProvider (the gateway adapter, test fakes, …) so the JSON-mode quirks
 // that vary by model are handled in exactly one place.
 export function parseJSON<T>(raw: string): T {
   const trimmed = raw.trim();

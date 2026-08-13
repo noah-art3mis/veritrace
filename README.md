@@ -73,7 +73,7 @@ Every stage is a recognized fact-checking / retrieval technique made inspectable
 
 ### Engineering & reliability
 
-- **Pluggable providers.** An OpenAI-compatible reasoning adapter lets the same pipeline run on Anthropic, OpenAI, or Gemini with no code changes; the model dropdown drives the backend and shows per-model cost (#10, #62, #67; ADR 0004).
+- **One gateway, any model.** Every reasoning call goes through a single OpenAI-compatible gateway (OpenRouter by default), so Anthropic, OpenAI, Gemini, DeepSeek, GLM, or Kimi models — and any custom slug, day-one — run with one key and no code changes; the picker shows per-model cost (#10, #62, #67; ADR 0012).
 - **Self-repairing JSON.** `askJSON` validates against a schema and does one bounded re-ask on malformed output — essential for cheaper, flakier models (#66).
 - **Resilient runs.** A single flaky model parse or an Exa timeout degrades one node instead of crashing the whole run (#70, #71).
 - **Rate-limit hardening.** A concurrency limiter, a per-IP rate limit, and friendly provider-error mapping tame free-tier 429s (#68, #69).

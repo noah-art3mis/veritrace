@@ -1,6 +1,6 @@
 import type { ClaimItem, QuestionItem, EvidenceItem, Verdict, QuestionTrace } from "../graph-types";
 import type { SearchOptions, RawEvidence } from "../exa";
-import type { ToolDef } from "../anthropic";
+import type { ToolDef } from "../reasoner-types";
 import type { PipelineDeps, DepthDeps } from "./deps";
 import { classifyEvidence } from "./classify";
 import { expandQuery } from "./expand";

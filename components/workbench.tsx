@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import FactGraphCanvas from "./fact-graph";
 import RunReport from "./run-report";
-import { SettingsPanel, DEFAULT_SETTINGS, type Settings } from "./settings-panel";
+import { SettingsPanel, DEFAULT_SETTINGS, effectiveModel, type Settings } from "./settings-panel";
 import { RunErrorModal } from "./run-error-modal";
 import { useIsMobile } from "./use-is-mobile";
-import { MODELS, supportsTemperature } from "@/lib/run-config";
+import { DEFAULT_MODEL, MODELS, modelInfo, supportsTemperature } from "@/lib/run-config";
 import { MOCK_GRAPH } from "@/lib/mock-graph";
 import type { FactGraph, ClaimItem } from "@/lib/graph-types";
 import type { PipelineEvent } from "@/lib/pipeline/events";
@@ -22,7 +22,19 @@ function loadSettings(): Settings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
-    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+    if (!raw) return DEFAULT_SETTINGS;
+    // Pick ONLY known Settings keys off the stored blob. This both applies defaults for new
+    // fields and drops fields a previous version persisted — in particular the pre-ADR-0012
+    // per-provider API keys, which must not keep being rewritten to localStorage forever.
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const settings = { ...DEFAULT_SETTINGS };
+    for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
+      if (key in parsed) (settings as Record<string, unknown>)[key] = parsed[key];
+    }
+    // Settings persisted before ADR 0012 carry pre-gateway model ids (not gateway slugs),
+    // which the API now rejects — reset those to the default rather than 400 every run.
+    if (!(settings.model in MODELS)) settings.model = DEFAULT_MODEL;
+    return settings;
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -93,7 +105,7 @@ export default function Workbench() {
   // The per-run config sent to both /api/check and /api/summary (model + BYO keys).
   function runConfig() {
     return {
-      model: settings.model,
+      model: effectiveModel(settings),
       temperature: settings.temperature,
       thinking: settings.thinking,
       maxClaims: settings.maxClaims,
@@ -105,10 +117,7 @@ export default function Workbench() {
       category: settings.category,
       preferFresh: settings.preferFresh,
       factCheckShortCircuit: settings.factCheckShortCircuit,
-      anthropicKey: settings.anthropicKey || undefined,
-      openaiKey: settings.openaiKey || undefined,
-      geminiKey: settings.geminiKey || undefined,
-      deepseekKey: settings.deepseekKey || undefined,
+      gatewayKey: settings.gatewayKey || undefined,
       exaKey: settings.exaKey || undefined,
       googleFactCheckKey: settings.googleFactCheckKey || undefined,
       cohereKey: settings.cohereKey || undefined,
@@ -299,11 +308,11 @@ export default function Workbench() {
             >
               {/* On mobile show only the model — the full temp/claims/q/src strip is meaningless
                   to a first-timer and eats the scarce first screen (#27). Tap to expand settings. */}
-              ⚙ Settings: {MODELS[settings.model].label}
+              ⚙ Settings: {modelInfo(effectiveModel(settings)).label}
               <span className="hidden sm:inline">
                 {" "}
                 · temp{" "}
-                {!supportsTemperature(settings.model)
+                {!supportsTemperature(effectiveModel(settings))
                   ? "n/a"
                   : settings.thinking
                     ? "1·think"
@@ -396,7 +405,7 @@ export default function Workbench() {
           current input; weaker models fail the parse path often enough to need a real surface. */}
       <RunErrorModal
         error={error}
-        modelLabel={MODELS[settings.model].label}
+        modelLabel={modelInfo(effectiveModel(settings)).label}
         onDismiss={() => setError(null)}
         onRetry={() => check(text)}
       />

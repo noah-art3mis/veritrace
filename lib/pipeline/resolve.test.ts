@@ -9,7 +9,7 @@ import {
 import { claimVerdict } from "./verdict";
 import type { ClaimItem, EvidenceItem, QuestionItem, Stance } from "../graph-types";
 import type { RawEvidence } from "../exa";
-import type { ToolLoopOpts } from "../anthropic";
+import type { ToolLoopOpts } from "../reasoner-types";
 import type { PipelineDeps } from "./deps";
 
 function claim(over: Partial<ClaimItem> = {}): ClaimItem {

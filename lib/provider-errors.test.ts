@@ -16,6 +16,10 @@ describe("friendlyProviderError", () => {
     expect(friendlyProviderError({ status: 403, message: "x" })).toMatch(/key|credit|auth/i);
   });
 
+  it("maps 402 (OpenRouter out of credits) to a credit message", () => {
+    expect(friendlyProviderError({ status: 402, message: "x" })).toMatch(/credit|quota/i);
+  });
+
   it("maps an insufficient_quota code to a credit message", () => {
     const msg = friendlyProviderError({ status: 429, code: "insufficient_quota", message: "x" });
     expect(msg).toMatch(/credit|quota|billing/i);

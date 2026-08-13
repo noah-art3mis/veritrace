@@ -123,11 +123,11 @@ describe("POST /api/check config validation", () => {
 
   it("returns 400 when no API key can be resolved (the reasoner throws)", async () => {
     createReasoner.mockImplementation(() => {
-      throw new Error("GEMINI_API_KEY is not set (required for the selected Gemini model).");
+      throw new Error("OPENROUTER_API_KEY is not set (and no gateway key was provided).");
     });
     const res = await POST(post(JSON.stringify({ text: "hi" })));
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/GEMINI_API_KEY/);
+    expect((await res.json()).error).toMatch(/OPENROUTER_API_KEY/);
   });
 });
 
@@ -155,10 +155,15 @@ describe("POST /api/check streaming", () => {
 
   it("builds the model caller from the requested config", async () => {
     await POST(
-      post(JSON.stringify({ text: "hi", config: { model: "claude-opus-4-8", temperature: 0.3 } })),
+      post(
+        JSON.stringify({
+          text: "hi",
+          config: { model: "anthropic/claude-opus-5", temperature: 0.3 },
+        }),
+      ),
     );
     expect(createReasoner).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "claude-opus-4-8", temperature: 0.3 }),
+      expect.objectContaining({ model: "anthropic/claude-opus-5", temperature: 0.3 }),
     );
   });
 

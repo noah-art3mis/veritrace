@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { AnthropicCaller } from "../anthropic";
+import type { ReasoningProvider } from "../reasoner-types";
 import type { Utterance } from "./segment";
 import { isSearchable } from "./claim-status";
 
 const askJSON = vi.fn();
-const ask: AnthropicCaller = { askJSON, askText: vi.fn(), askWithTools: vi.fn() };
+const ask: ReasoningProvider = { askJSON, askText: vi.fn(), askWithTools: vi.fn() };
 
 import { triageUtterances } from "./triage";
 

@@ -1,4 +1,4 @@
-import type { AnthropicCaller } from "../anthropic";
+import type { ReasoningProvider } from "../reasoner-types";
 import type { ClaimItem, QuestionItem } from "../graph-types";
 import { isSearchable } from "./claim-status";
 
@@ -17,7 +17,7 @@ Respond with ONLY a JSON array of strings, no prose:
 
 export async function generateQuestions(
   claim: ClaimItem,
-  ask: AnthropicCaller,
+  ask: ReasoningProvider,
   maxQuestions: number,
 ): Promise<QuestionItem[]> {
   // Only searchable claims get questions: relevance-dropped (trivial background),

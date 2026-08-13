@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { expandQuery } from "./expand";
-import type { AnthropicCaller } from "../anthropic";
+import type { ReasoningProvider } from "../reasoner-types";
 import type { ClaimItem, QuestionItem } from "../graph-types";
 
 const claim: ClaimItem = {
@@ -16,7 +16,7 @@ const question: QuestionItem = {
   status: "searching",
 };
 
-function caller(askText: ReturnType<typeof vi.fn>): AnthropicCaller {
+function caller(askText: ReturnType<typeof vi.fn>): ReasoningProvider {
   return { askText, askJSON: vi.fn(), askWithTools: vi.fn() };
 }
 

@@ -1,4 +1,4 @@
-import type { AnthropicCaller } from "../anthropic";
+import type { ReasoningProvider } from "../reasoner-types";
 import type { RawEvidence, FetchedSource, SearchOptions } from "../exa";
 import type { FactCheckHit } from "../factcheck";
 import type { Reranker } from "./rerank";
@@ -16,11 +16,11 @@ export interface DepthDeps {
 }
 
 // The per-request dependencies threaded through the pipeline: a model caller and an
-// evidence search, both already bound to this run's config + API keys (see createAnthropic
+// evidence search, both already bound to this run's config + API keys (see createReasoner
 // / createExaSearch). Stages take these explicitly rather than reaching for module globals,
 // so each request runs with its own model, temperature, thinking setting, and keys.
 export interface PipelineDeps {
-  ask: AnthropicCaller;
+  ask: ReasoningProvider;
   search: (query: string, opts?: SearchOptions) => Promise<RawEvidence[]>;
   /** Legibility cap on extracted claims for this run (from RunConfig.maxClaims). */
   maxClaims: number;

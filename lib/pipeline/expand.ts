@@ -1,4 +1,4 @@
-import type { AnthropicCaller } from "../anthropic";
+import type { ReasoningProvider } from "../reasoner-types";
 import type { ClaimItem, QuestionItem } from "../graph-types";
 
 // HyDE-style query expansion (HyDE: Gao et al. 2022; applied to fact-checking by HerO, 2024 —
@@ -39,7 +39,7 @@ const TRACE_LABELS = ["would confirm", "would refute"];
 export async function expandQuery(
   claim: ClaimItem,
   question: QuestionItem,
-  ask: AnthropicCaller,
+  ask: ReasoningProvider,
 ): Promise<ExpandedQuery> {
   const raw = await ask.askText(
     `Claim: "${claim.text}"\nQuestion: "${question.text}"\n\nWrite the two directional hypothetical passages.`,

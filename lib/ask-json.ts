@@ -1,4 +1,4 @@
-import type { AskOpts } from "./anthropic";
+import type { AskOpts } from "./reasoner-types";
 import { parseJSON } from "./parse-json";
 
 // Options for a JSON ask: standard AskOpts plus an optional validator that THROWS on a

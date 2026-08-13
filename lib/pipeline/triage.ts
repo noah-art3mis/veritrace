@@ -1,4 +1,4 @@
-import type { AnthropicCaller } from "../anthropic";
+import type { ReasoningProvider } from "../reasoner-types";
 import type { ClaimItem } from "../graph-types";
 import type { Utterance } from "./segment";
 import { auditDecontextualization } from "./audit";
@@ -37,7 +37,7 @@ Respond with ONLY a JSON array, one object per utterance IN THE SAME ORDER, no p
 export async function triageUtterances(
   sourceText: string,
   utterances: Utterance[],
-  ask: AnthropicCaller,
+  ask: ReasoningProvider,
   maxClaims: number,
   asOf?: string,
 ): Promise<ClaimItem[]> {

@@ -1,6 +1,6 @@
 # Pluggable reasoning + search providers
 
-**Status:** accepted
+**Status:** accepted — the multi-backend routing half is superseded by [ADR 0012](./0012-single-gateway-entry-point.md) (one gateway entry point); the `ReasoningProvider` seam survives.
 
 ## Context
 

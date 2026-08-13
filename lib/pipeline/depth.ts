@@ -1,6 +1,6 @@
 import type { ClaimItem, QuestionItem, WalkStep } from "../graph-types";
 import type { RawEvidence, SearchOptions } from "../exa";
-import type { ToolDef } from "../anthropic";
+import type { ToolDef } from "../reasoner-types";
 import type { PipelineDeps, DepthDeps } from "./deps";
 // Type-only import (erased at runtime, so no cycle with resolve.ts, which imports gatherDepth).
 import type { RetrievalOutcome } from "./resolve";

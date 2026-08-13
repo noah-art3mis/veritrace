@@ -1,10 +1,10 @@
 // LIVE EVAL HARNESS. Runs each committed smoke gold through the real VERITRACE pipeline and
 // scores the document-level verdict against the gold label. This is the thin orchestration
 // layer — all the grading math lives in ./score.mjs (unit-tested, key-free). It is
-// auto-SKIPPED unless BOTH ANTHROPIC_API_KEY and EXA_API_KEY are present, so it never runs in
+// auto-SKIPPED unless BOTH OPENROUTER_API_KEY and EXA_API_KEY are present, so it never runs in
 // CI; it's a tool you invoke deliberately:
 //
-//   ! export $(grep -E 'ANTHROPIC_API_KEY|EXA_API_KEY' .env.local) && npm run eval:smoke
+//   ! export $(grep -E 'OPENROUTER_API_KEY|EXA_API_KEY' .env.local) && npm run eval:smoke
 //
 // EVAL_LIMIT=3 caps how many golds run (a fast, cheap smoke of the harness itself).
 //
@@ -18,11 +18,11 @@ import { loadGolden, GOLDEN_VERDICTS } from "./golden/load.mjs";
 import { scoreReport, formatReport, isDeNovoCheckable } from "./score.mjs";
 import { runEval, writeResults } from "./run.mjs";
 import { collectGraph } from "@/lib/pipeline/stream";
-import { createAnthropic } from "@/lib/anthropic";
+import { createReasoner } from "@/lib/reasoner";
 import { createExaSearch } from "@/lib/exa";
 import { DEFAULT_CONFIG } from "@/lib/run-config";
 
-const hasKeys = !!process.env.ANTHROPIC_API_KEY && !!process.env.EXA_API_KEY;
+const hasKeys = !!process.env.OPENROUTER_API_KEY && !!process.env.EXA_API_KEY;
 // EVAL_FILE selects the gold set under evals/golden/ (default the committed smoke set); pass a
 // bare filename or an absolute path. EVAL_LIMIT caps how many golds run.
 const evalFile = process.env.EVAL_FILE ?? "smoke.jsonl";
@@ -37,7 +37,7 @@ describe.skipIf(!hasKeys)("gold-set eval (live pipeline)", () => {
     async () => {
       const config = { ...DEFAULT_CONFIG };
       const deps = {
-        ask: createAnthropic(config),
+        ask: createReasoner(config),
         search: createExaSearch({
           exaKey: config.exaKey,
           numResults: config.maxSources,

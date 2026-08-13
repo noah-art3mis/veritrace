@@ -1,7 +1,8 @@
-// Map raw provider SDK errors into a readable, actionable message before they reach the client.
-// Both the OpenAI and Anthropic SDKs throw error objects carrying a numeric `.status` (and often a
-// `.code`). Gemini's free-tier rate limit surfaced as the opaque `⚠ 429 status code (no body)`;
-// this turns that into guidance the user can act on. Unknown errors fall back to their own message.
+// Map raw gateway SDK errors into a readable, actionable message before they reach the client.
+// The OpenAI SDK (which the gateway adapter speaks through) throws error objects carrying a
+// numeric `.status` (and often a `.code`); rate limits otherwise surface as the opaque
+// `⚠ 429 status code (no body)`. This turns them into guidance the user can act on. Unknown
+// errors fall back to their own message.
 
 function errorStatus(err: unknown): number | undefined {
   if (typeof err === "object" && err !== null && "status" in err) {
@@ -27,12 +28,14 @@ export function friendlyProviderError(err: unknown): string {
   const code = errorCode(err);
 
   if (code === "insufficient_quota") return CREDIT_MESSAGE;
+  // OpenRouter signals an out-of-credit account with 402 Payment Required.
+  if (status === 402) return CREDIT_MESSAGE;
 
   if (status === 429) {
-    return "Rate-limited by the model provider (a free tier such as Gemini's caps requests per minute). Wait a moment and retry, lower the claims/questions caps to shrink the run, or use a paid key.";
+    return "Rate-limited by the gateway or the model provider behind it. Wait a moment and retry, lower the claims/questions caps to shrink the run, or use a key with more headroom.";
   }
   if (status === 401 || status === 403) {
-    return "The model provider rejected the API key (unauthorized). Check that the right key is set for the selected model, and that it has credit.";
+    return "The gateway rejected the API key (unauthorized). Check that OPENROUTER_API_KEY (or your own key in Settings) is valid and has credit.";
   }
 
   if (err instanceof Error && err.message) return err.message;

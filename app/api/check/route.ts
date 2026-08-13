@@ -7,7 +7,7 @@ import { parseConfig, MAX_DEPTH_HOPS, DEPTH_LINKS_PER_SOURCE } from "@/lib/run-c
 import { apiRateLimiter, clientIp } from "@/lib/rate-limit";
 import { friendlyProviderError } from "@/lib/provider-errors";
 
-// The pipeline calls Anthropic + Exa, so it must run on the Node runtime and is
+// The pipeline calls the LLM gateway + Exa, so it must run on the Node runtime and is
 // inherently dynamic (never cached). It streams events as NDJSON so the client can
 // build the evidence graph live. The request body carries both the source text and a
 // per-run config (model / temperature / thinking / optional user API keys).

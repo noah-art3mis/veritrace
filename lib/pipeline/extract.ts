@@ -1,4 +1,4 @@
-import type { AnthropicCaller } from "../anthropic";
+import type { ReasoningProvider } from "../reasoner-types";
 import type { ClaimItem } from "../graph-types";
 import { segmentUtterances } from "./segment";
 import { triageUtterances } from "./triage";
@@ -10,7 +10,7 @@ import { triageUtterances } from "./triage";
 // searchable subset (<= maxClaims) goes on to question-generation and retrieval.
 export async function extractClaims(
   sourceText: string,
-  ask: AnthropicCaller,
+  ask: ReasoningProvider,
   maxClaims: number,
   asOf?: string,
 ): Promise<ClaimItem[]> {
