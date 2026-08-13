@@ -32,10 +32,10 @@ export function friendlyProviderError(err: unknown): string {
   if (status === 402) return CREDIT_MESSAGE;
 
   if (status === 429) {
-    return "Rate-limited by the model provider (a free tier such as Gemini's caps requests per minute). Wait a moment and retry, lower the claims/questions caps to shrink the run, or use a paid key.";
+    return "Rate-limited by the gateway or the model provider behind it. Wait a moment and retry, lower the claims/questions caps to shrink the run, or use a key with more headroom.";
   }
   if (status === 401 || status === 403) {
-    return "The model provider rejected the API key (unauthorized). Check that the right key is set for the selected model, and that it has credit.";
+    return "The gateway rejected the API key (unauthorized). Check that OPENROUTER_API_KEY (or your own key in Settings) is valid and has credit.";
   }
 
   if (err instanceof Error && err.message) return err.message;

@@ -12,7 +12,7 @@ These are threaded UI → `runConfig()` → `parseConfig` (`lib/run-config.ts`) 
 | ------------------- | ---------------------------------------- | -------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------- |
 | Model               | `model`                                  | gateway slug               | DeepSeek V4 Flash | Which model runs every reasoning call — curated dropdown or any custom gateway slug (ADR 0012).               |
 | Temperature         | `temperature`                            | 0–1                        | 0                 | Sampling determinism. Inert when thinking is on or the model deprecates it.                                   |
-| Extended thinking   | `thinking`                               | on/off                     | off               | Adds a `THINKING_BUDGET` (2048-token) reasoning budget.                                                       |
+| Extended thinking   | `thinking`                               | on/off                     | off               | Maps to gateway `reasoning_effort: "medium"`; off leaves the model's own default (ADR 0012).                  |
 | Claims to extract   | `maxClaims`                              | 1–10                       | 5                 | How many atomic claims are kept from the source text.                                                         |
 | Questions per claim | `maxQuestions`                           | 1–10                       | 2                 | Resolving questions each claim fans out into.                                                                 |
 | Sources per search  | `maxSources` → Exa `numResults`          | 1–10                       | 2                 | Results returned per Exa search call.                                                                         |
@@ -62,15 +62,16 @@ Consequence: a claim with only low-reliability or low-confidence evidence resolv
 
 Output-token ceilings on each Anthropic call. Mostly sized to fit the expected output; the classify cap is the one most at risk of truncation when many sources are gathered.
 
-| Stage     | File            | `maxTokens`              |
-| --------- | --------------- | ------------------------ |
-| expand    | `expand.ts`     | 200                      |
-| questions | `questions.ts`  | 600                      |
-| segment   | `segment.ts`    | 1500                     |
-| gather    | `resolve.ts`    | 600                      |
-| classify  | `classify.ts`   | 2048                     |
-| summarize | `summarize.ts`  | 700                      |
-| thinking  | `run-config.ts` | 2048 (`THINKING_BUDGET`) |
+| Stage     | File           | `maxTokens` |
+| --------- | -------------- | ----------- |
+| expand    | `expand.ts`    | 200         |
+| questions | `questions.ts` | 600         |
+| segment   | `segment.ts`   | 1500        |
+| gather    | `resolve.ts`   | 600         |
+| classify  | `classify.ts`  | 2048        |
+| summarize | `summarize.ts` | 700         |
+
+Every stage's real request ceiling is its listed value **plus `REASONING_TOKEN_RESERVE` (4096, `run-config.ts`)** — the gateway adapter adds the reserve unconditionally so a model that reasons by default can't consume the whole budget and return empty content (ADR 0012).
 
 ## Known-issue cross-references
 
