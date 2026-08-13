@@ -18,6 +18,7 @@ import {
   MAX_CHARS,
   EXA_CATEGORIES,
   supportsTemperature,
+  isWellFormedModelId,
   type ModelId,
   type ModelInfo,
   type ExaCategory,
@@ -66,6 +67,15 @@ export interface Settings {
   withholdVerdict: boolean;
   /** Display-only: show the graph's minimap (the navigator thumbnail). */
   showMinimap: boolean;
+}
+
+/**
+ * The model a run will actually use: a filled custom slug overrides the dropdown; blank ⇒
+ * the curated dropdown model. The ONLY place this rule lives — every consumer (run config,
+ * labels, temperature logic) calls this instead of re-deriving, so the sites can't drift.
+ */
+export function effectiveModel(settings: Pick<Settings, "model" | "customModel">): string {
+  return settings.customModel.trim() || settings.model;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -154,15 +164,11 @@ export function SettingsPanel({
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value });
 
-  // A filled custom slug overrides the dropdown — the run uses whatever the gateway serves
-  // under that id. Blank ⇒ the curated dropdown model.
-  const effectiveModel = settings.customModel.trim() || settings.model;
-
   // Temperature is inert when extended thinking is on (API forces 1) or the model
   // deprecated the parameter (API rejects it — and for custom models we can't know, so it's
   // omitted). modelDeprecatesTemp takes precedence in the readout because it can't be
   // toggled off the way thinking can.
-  const modelDeprecatesTemp = !supportsTemperature(effectiveModel);
+  const modelDeprecatesTemp = !supportsTemperature(effectiveModel(settings));
   const tempInert = settings.thinking || modelDeprecatesTemp;
 
   // Escape closes the drawer while it's open.
@@ -238,10 +244,16 @@ export function SettingsPanel({
                 placeholder="creator/model · blank uses the dropdown"
                 className={fieldCls}
               />
-              <span className={helpCls}>
-                any OpenRouter slug (e.g. mistralai/mistral-large-3) — cost unknown, temperature
-                inert
-              </span>
+              {settings.customModel.trim() && !isWellFormedModelId(settings.customModel.trim()) ? (
+                <span className="font-mono text-[9px] text-red-400">
+                  not a valid slug — expected creator/model (e.g. mistralai/mistral-large-3)
+                </span>
+              ) : (
+                <span className={helpCls}>
+                  any OpenRouter slug (e.g. mistralai/mistral-large-3) — needs your own gateway key
+                  below; cost unknown, temperature inert
+                </span>
+              )}
             </div>
 
             {/* Temperature */}
