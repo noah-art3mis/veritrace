@@ -1,4 +1,4 @@
-import type { AnthropicCaller } from "../anthropic";
+import type { ReasoningProvider } from "../reasoner-types";
 
 // SAFE's first move: "split the response into individual facts". Before we judge importance
 // or decontextualize, we break the source into the COMPLETE set of atomic utterances it
@@ -32,7 +32,7 @@ Respond with ONLY a JSON array, no prose:
 
 export async function segmentUtterances(
   sourceText: string,
-  ask: AnthropicCaller,
+  ask: ReasoningProvider,
 ): Promise<Utterance[]> {
   const raw = await ask.askJSON<Utterance[]>(
     `Source text:\n"""\n${sourceText}\n"""\n\nSegment it into atomic utterances as instructed.`,

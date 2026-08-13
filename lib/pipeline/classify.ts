@@ -1,4 +1,4 @@
-import type { AnthropicCaller } from "../anthropic";
+import type { ReasoningProvider } from "../reasoner-types";
 import type {
   ClaimItem,
   QuestionItem,
@@ -46,7 +46,7 @@ export async function classifyEvidence(
   claim: ClaimItem,
   question: QuestionItem,
   raw: RawEvidence[],
-  ask: AnthropicCaller,
+  ask: ReasoningProvider,
 ): Promise<EvidenceItem[]> {
   if (raw.length === 0) return [];
 

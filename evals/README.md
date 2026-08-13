@@ -17,13 +17,13 @@ evals/
 ## What runs where
 
 - **In CI** (`npm test`, no keys): `score.test.ts`, `run.test.ts`, and `golden/*.test.ts`. These pin the grading math and the gold→prediction mapping with fakes — no model, no network.
-- **The live eval** (`run.eval.test.ts`) is `skipIf` unless **both** `ANTHROPIC_API_KEY` and `EXA_API_KEY` are set, so CI always skips it. It runs each smoke gold through `collectGraph` and scores `graph.source.verdict` against the gold label.
+- **The live eval** (`run.eval.test.ts`) is `skipIf` unless **both** `OPENROUTER_API_KEY` and `EXA_API_KEY` are set, so CI always skips it. It runs each smoke gold through `collectGraph` and scores `graph.source.verdict` against the gold label.
 
 ## Running the live eval
 
 ```bash
 # expose your keys to the shell, then:
-export $(grep -E 'ANTHROPIC_API_KEY|EXA_API_KEY' .env.local | xargs)
+export $(grep -E 'OPENROUTER_API_KEY|EXA_API_KEY' .env.local | xargs)
 npm run eval:smoke              # all 12 golds (slow: claim → search → verdict each)
 EVAL_LIMIT=3 npm run eval:smoke # cheap smoke of the harness itself
 ```

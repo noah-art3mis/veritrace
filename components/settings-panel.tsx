@@ -48,11 +48,10 @@ export interface Settings {
   preferFresh: boolean;
   /** Opt-in: short-circuit a claim with an existing Google Fact Check verdict, skipping retrieval. */
   factCheckShortCircuit: boolean;
-  /** Per-backend model keys; "" = use the server's env key for that provider. */
-  anthropicKey: string;
-  openaiKey: string;
-  geminiKey: string;
-  deepseekKey: string;
+  /** Custom gateway model slug ("creator/model"); "" = use the dropdown's curated model. */
+  customModel: string;
+  /** Gateway (OpenRouter) key; "" = use the server's OPENROUTER_API_KEY env. */
+  gatewayKey: string;
   exaKey: string;
   /** User-supplied Google Fact Check API key; "" = use the server's GOOGLE_FACT_CHECK_API_KEY. */
   googleFactCheckKey: string;
@@ -82,10 +81,8 @@ export const DEFAULT_SETTINGS: Settings = {
   category: "",
   preferFresh: false,
   factCheckShortCircuit: false,
-  anthropicKey: "",
-  openaiKey: "",
-  geminiKey: "",
-  deepseekKey: "",
+  customModel: "",
+  gatewayKey: "",
   exaKey: "",
   googleFactCheckKey: "",
   cohereKey: "",
@@ -157,10 +154,15 @@ export function SettingsPanel({
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     onChange({ ...settings, [key]: value });
 
+  // A filled custom slug overrides the dropdown — the run uses whatever the gateway serves
+  // under that id. Blank ⇒ the curated dropdown model.
+  const effectiveModel = settings.customModel.trim() || settings.model;
+
   // Temperature is inert when extended thinking is on (API forces 1) or the model
-  // deprecated the parameter (API rejects it). modelDeprecatesTemp takes precedence in
-  // the readout because it can't be toggled off the way thinking can.
-  const modelDeprecatesTemp = !supportsTemperature(settings.model);
+  // deprecated the parameter (API rejects it — and for custom models we can't know, so it's
+  // omitted). modelDeprecatesTemp takes precedence in the readout because it can't be
+  // toggled off the way thinking can.
+  const modelDeprecatesTemp = !supportsTemperature(effectiveModel);
   const tempInert = settings.thinking || modelDeprecatesTemp;
 
   // Escape closes the drawer while it's open.
@@ -224,6 +226,22 @@ export function SettingsPanel({
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Custom model — any gateway slug, overrides the dropdown when filled */}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Custom model</label>
+              <input
+                type="text"
+                value={settings.customModel}
+                onChange={(e) => set("customModel", e.target.value)}
+                placeholder="creator/model · blank uses the dropdown"
+                className={fieldCls}
+              />
+              <span className={helpCls}>
+                any OpenRouter slug (e.g. mistralai/mistral-large-3) — cost unknown, temperature
+                inert
+              </span>
             </div>
 
             {/* Temperature */}
@@ -470,36 +488,9 @@ export function SettingsPanel({
                   type="password"
                   autoComplete="off"
                   spellCheck={false}
-                  value={settings.anthropicKey}
-                  onChange={(e) => set("anthropicKey", e.target.value)}
-                  placeholder="ANTHROPIC_API_KEY · blank uses server default"
-                  className={fieldCls}
-                />
-                <input
-                  type="password"
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={settings.openaiKey}
-                  onChange={(e) => set("openaiKey", e.target.value)}
-                  placeholder="OPENAI_API_KEY · blank uses server default"
-                  className={fieldCls}
-                />
-                <input
-                  type="password"
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={settings.geminiKey}
-                  onChange={(e) => set("geminiKey", e.target.value)}
-                  placeholder="GEMINI_API_KEY · blank uses server default"
-                  className={fieldCls}
-                />
-                <input
-                  type="password"
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={settings.deepseekKey}
-                  onChange={(e) => set("deepseekKey", e.target.value)}
-                  placeholder="DEEPSEEK_API_KEY · blank uses server default"
+                  value={settings.gatewayKey}
+                  onChange={(e) => set("gatewayKey", e.target.value)}
+                  placeholder="OPENROUTER_API_KEY · blank uses server default"
                   className={fieldCls}
                 />
                 <input

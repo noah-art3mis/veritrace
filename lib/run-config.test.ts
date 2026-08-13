@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseConfig,
   supportsTemperature,
+  modelInfo,
   DEFAULT_CONFIG,
   DEFAULT_MODEL,
   DEFAULT_CHARS,
@@ -28,12 +29,27 @@ describe("parseConfig defaults", () => {
 });
 
 describe("parseConfig validation", () => {
-  it("accepts a whitelisted model", () => {
-    expect(parseConfig({ model: "claude-opus-4-8" }).model).toBe("claude-opus-4-8");
+  it("accepts a curated model", () => {
+    expect(parseConfig({ model: "anthropic/claude-opus-5" }).model).toBe("anthropic/claude-opus-5");
   });
 
-  it("rejects an unknown model", () => {
+  it("accepts an uncurated creator/model slug (custom gateway model)", () => {
+    expect(parseConfig({ model: "mistralai/mistral-large-3" }).model).toBe(
+      "mistralai/mistral-large-3",
+    );
+  });
+
+  it("rejects a model id without a creator prefix", () => {
     expect(() => parseConfig({ model: "gpt-4" })).toThrow(/model/i);
+  });
+
+  it("rejects a model id with path traversal or spaces", () => {
+    expect(() => parseConfig({ model: "../etc/passwd" })).toThrow(/model/i);
+    expect(() => parseConfig({ model: "openai/gpt 5" })).toThrow(/model/i);
+  });
+
+  it("rejects an absurdly long model id", () => {
+    expect(() => parseConfig({ model: `openai/${"x".repeat(100)}` })).toThrow(/model/i);
   });
 
   it("accepts a temperature within range", () => {
@@ -198,44 +214,49 @@ describe("parseConfig preferFresh", () => {
 });
 
 describe("supportsTemperature", () => {
-  it("reports Opus 4.8 as not supporting temperature (the API deprecated it)", () => {
-    expect(supportsTemperature("claude-opus-4-8")).toBe(false);
+  it("reports reasoning-only curated models as not supporting temperature", () => {
+    expect(supportsTemperature("anthropic/claude-opus-5")).toBe(false);
+    expect(supportsTemperature("openai/gpt-5.6-luna")).toBe(false);
   });
 
-  it("reports Sonnet 4.6 and Haiku 4.5 as still supporting temperature", () => {
-    expect(supportsTemperature("claude-sonnet-4-6")).toBe(true);
-    expect(supportsTemperature("claude-haiku-4-5-20251001")).toBe(true);
+  it("reports temperature-capable curated models as supporting it", () => {
+    expect(supportsTemperature("anthropic/claude-sonnet-5")).toBe(true);
+    expect(supportsTemperature("anthropic/claude-haiku-4.5")).toBe(true);
+  });
+
+  it("omits temperature for uncurated custom models (capabilities unknown)", () => {
+    expect(supportsTemperature("mistralai/mistral-large-3")).toBe(false);
+  });
+});
+
+describe("modelInfo for custom models", () => {
+  it("falls back to a label-only entry with unknown costs", () => {
+    const info = modelInfo("somecreator/some-model");
+    expect(info.label).toBe("somecreator/some-model");
+    expect(info.inputCost).toBeUndefined();
+    expect(info.outputCost).toBeUndefined();
   });
 });
 
 describe("parseConfig API keys", () => {
   it("passes through non-empty trimmed keys", () => {
-    const cfg = parseConfig({ anthropicKey: "  sk-ant-123  ", exaKey: "exa-456" });
-    expect(cfg.anthropicKey).toBe("sk-ant-123");
+    const cfg = parseConfig({ gatewayKey: "  sk-or-123  ", exaKey: "exa-456" });
+    expect(cfg.gatewayKey).toBe("sk-or-123");
     expect(cfg.exaKey).toBe("exa-456");
   });
 
-  it("passes through the model-provider and rerank keys", () => {
-    const cfg = parseConfig({
-      openaiKey: " oa-1 ",
-      geminiKey: "gm-1",
-      deepseekKey: "ds-1",
-      cohereKey: "co-1",
-    });
-    expect(cfg.openaiKey).toBe("oa-1");
-    expect(cfg.geminiKey).toBe("gm-1");
-    expect(cfg.deepseekKey).toBe("ds-1");
-    expect(cfg.cohereKey).toBe("co-1");
+  it("passes through the rerank key", () => {
+    expect(parseConfig({ cohereKey: "co-1" }).cohereKey).toBe("co-1");
   });
 
   it("treats blank/whitespace keys as absent (env fallback)", () => {
-    const cfg = parseConfig({ anthropicKey: "   ", exaKey: "" });
-    expect(cfg.anthropicKey).toBeUndefined();
+    const cfg = parseConfig({ gatewayKey: "   ", exaKey: "" });
+    expect(cfg.gatewayKey).toBeUndefined();
     expect(cfg.exaKey).toBeUndefined();
   });
 
   it("ignores non-string keys", () => {
-    const cfg = parseConfig({ anthropicKey: 42 });
-    expect(cfg.anthropicKey).toBeUndefined();
+    const cfg = parseConfig({ gatewayKey: 42 });
+    expect(cfg.gatewayKey).toBeUndefined();
   });
 });

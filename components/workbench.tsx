@@ -6,7 +6,13 @@ import RunReport from "./run-report";
 import { SettingsPanel, DEFAULT_SETTINGS, type Settings } from "./settings-panel";
 import { RunErrorModal } from "./run-error-modal";
 import { useIsMobile } from "./use-is-mobile";
-import { MODELS, supportsTemperature } from "@/lib/run-config";
+import {
+  DEFAULT_MODEL,
+  MODELS,
+  isWellFormedModelId,
+  modelInfo,
+  supportsTemperature,
+} from "@/lib/run-config";
 import { MOCK_GRAPH } from "@/lib/mock-graph";
 import type { FactGraph, ClaimItem } from "@/lib/graph-types";
 import type { PipelineEvent } from "@/lib/pipeline/events";
@@ -22,7 +28,13 @@ function loadSettings(): Settings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
-    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+    const settings: Settings = raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+    // Settings persisted before ADR 0012 carry pre-gateway model ids (no "creator/" prefix),
+    // which the API now rejects — reset those to the default rather than 400 every run.
+    if (!isWellFormedModelId(settings.model) || !(settings.model in MODELS)) {
+      settings.model = DEFAULT_MODEL;
+    }
+    return settings;
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -93,7 +105,7 @@ export default function Workbench() {
   // The per-run config sent to both /api/check and /api/summary (model + BYO keys).
   function runConfig() {
     return {
-      model: settings.model,
+      model: settings.customModel.trim() || settings.model,
       temperature: settings.temperature,
       thinking: settings.thinking,
       maxClaims: settings.maxClaims,
@@ -105,10 +117,7 @@ export default function Workbench() {
       category: settings.category,
       preferFresh: settings.preferFresh,
       factCheckShortCircuit: settings.factCheckShortCircuit,
-      anthropicKey: settings.anthropicKey || undefined,
-      openaiKey: settings.openaiKey || undefined,
-      geminiKey: settings.geminiKey || undefined,
-      deepseekKey: settings.deepseekKey || undefined,
+      gatewayKey: settings.gatewayKey || undefined,
       exaKey: settings.exaKey || undefined,
       googleFactCheckKey: settings.googleFactCheckKey || undefined,
       cohereKey: settings.cohereKey || undefined,
@@ -299,7 +308,7 @@ export default function Workbench() {
             >
               {/* On mobile show only the model — the full temp/claims/q/src strip is meaningless
                   to a first-timer and eats the scarce first screen (#27). Tap to expand settings. */}
-              ⚙ Settings: {MODELS[settings.model].label}
+              ⚙ Settings: {modelInfo(settings.customModel.trim() || settings.model).label}
               <span className="hidden sm:inline">
                 {" "}
                 · temp{" "}
@@ -396,7 +405,7 @@ export default function Workbench() {
           current input; weaker models fail the parse path often enough to need a real surface. */}
       <RunErrorModal
         error={error}
-        modelLabel={MODELS[settings.model].label}
+        modelLabel={modelInfo(settings.customModel.trim() || settings.model).label}
         onDismiss={() => setError(null)}
         onRetry={() => check(text)}
       />

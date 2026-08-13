@@ -1,4 +1,4 @@
-import type { ReasoningProvider, AskOpts, ToolLoopOpts } from "./anthropic";
+import type { ReasoningProvider, AskOpts, ToolLoopOpts } from "./reasoner-types";
 import type { JSONOpts } from "./ask-json";
 import type { Semaphore } from "./semaphore";
 

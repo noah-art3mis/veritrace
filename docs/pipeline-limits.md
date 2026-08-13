@@ -8,19 +8,19 @@ Values current as of this writing — grep the cited symbol if in doubt.
 
 These are threaded UI → `runConfig()` → `parseConfig` (`lib/run-config.ts`) → the pipeline. Defaults live in `DEFAULT_CONFIG`; ranges are enforced server-side.
 
-| Setting             | Symbol / param                           | Range                      | Default   | Effect                                                                                                        |
-| ------------------- | ---------------------------------------- | -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
-| Model               | `model`                                  | enum                       | Haiku 4.5 | Which Claude model runs every reasoning call.                                                                 |
-| Temperature         | `temperature`                            | 0–1                        | 0         | Sampling determinism. Inert when thinking is on or the model deprecates it.                                   |
-| Extended thinking   | `thinking`                               | on/off                     | off       | Adds a `THINKING_BUDGET` (2048-token) reasoning budget.                                                       |
-| Claims to extract   | `maxClaims`                              | 1–10                       | 5         | How many atomic claims are kept from the source text.                                                         |
-| Questions per claim | `maxQuestions`                           | 1–10                       | 2         | Resolving questions each claim fans out into.                                                                 |
-| Sources per search  | `maxSources` → Exa `numResults`          | 1–10                       | 2         | Results returned per Exa search call.                                                                         |
-| Read depth          | `maxChars` → Exa `text.maxCharacters`    | 200–10000                  | 6000      | How much of each source's body the **classifier** reads. See note below.                                      |
-| Deep search         | `deepSearch` → Exa `type`                | on/off                     | off       | `"deep"` (agentic) vs `"auto"`. Higher recall, slower, pricier.                                               |
-| Depth mode          | `depthMode` → `deps.depth`               | on/off                     | off       | Swaps the breadth fan-out for a link-following walk toward the origin (ADR 0011). Renders as the spiral view. |
-| Source category     | `category` → Exa `category`              | ""/news/research paper/pdf | ""        | Restrict retrieval to a content type for cleaner extraction; narrows recall.                                  |
-| Prefer fresh        | `preferFresh` → Exa `contents.livecrawl` | on/off                     | off       | `"preferred"` live-crawls over cache. Fresher for breaking news, slower.                                      |
+| Setting             | Symbol / param                           | Range                      | Default           | Effect                                                                                                        |
+| ------------------- | ---------------------------------------- | -------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| Model               | `model`                                  | gateway slug               | DeepSeek V4 Flash | Which model runs every reasoning call — curated dropdown or any custom gateway slug (ADR 0012).               |
+| Temperature         | `temperature`                            | 0–1                        | 0                 | Sampling determinism. Inert when thinking is on or the model deprecates it.                                   |
+| Extended thinking   | `thinking`                               | on/off                     | off               | Adds a `THINKING_BUDGET` (2048-token) reasoning budget.                                                       |
+| Claims to extract   | `maxClaims`                              | 1–10                       | 5                 | How many atomic claims are kept from the source text.                                                         |
+| Questions per claim | `maxQuestions`                           | 1–10                       | 2                 | Resolving questions each claim fans out into.                                                                 |
+| Sources per search  | `maxSources` → Exa `numResults`          | 1–10                       | 2                 | Results returned per Exa search call.                                                                         |
+| Read depth          | `maxChars` → Exa `text.maxCharacters`    | 200–10000                  | 6000              | How much of each source's body the **classifier** reads. See note below.                                      |
+| Deep search         | `deepSearch` → Exa `type`                | on/off                     | off               | `"deep"` (agentic) vs `"auto"`. Higher recall, slower, pricier.                                               |
+| Depth mode          | `depthMode` → `deps.depth`               | on/off                     | off               | Swaps the breadth fan-out for a link-following walk toward the origin (ADR 0011). Renders as the spiral view. |
+| Source category     | `category` → Exa `category`              | ""/news/research paper/pdf | ""                | Restrict retrieval to a content type for cleaner extraction; narrows recall.                                  |
+| Prefer fresh        | `preferFresh` → Exa `contents.livecrawl` | on/off                     | off               | `"preferred"` live-crawls over cache. Fresher for breaking news, slower.                                      |
 
 ### Read depth note — the highlight/text split
 

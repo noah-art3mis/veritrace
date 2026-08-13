@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { throttleProvider } from "./throttle";
 import { createSemaphore } from "./semaphore";
-import type { ReasoningProvider } from "./anthropic";
+import type { ReasoningProvider } from "./reasoner-types";
 
 function deferred() {
   let resolve!: (v: string) => void;

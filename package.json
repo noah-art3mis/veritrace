@@ -17,7 +17,6 @@
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.100.1",
     "@dagrejs/dagre": "^3.0.0",
     "@xyflow/react": "^12.10.2",
     "d3-force": "^3.0.0",
