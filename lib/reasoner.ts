@@ -1,4 +1,4 @@
-import type { RunConfig } from "./run-config";
+import { MODELS, type RunConfig } from "./run-config";
 import type { ReasoningProvider } from "./reasoner-types";
 import { createGateway } from "./gateway";
 import { createSemaphore } from "./semaphore";
@@ -32,11 +32,22 @@ export function createReasoner(config: RunConfig): ReasoningProvider {
 // mutating process.env: the caller's key from the settings panel wins (BYO-key runs), then the
 // server's env key. Throws a clear, surfaceable error instead of letting a missing key turn
 // into an opaque 401 from the gateway.
+//
+// SPEND GATE: the server's key pays only for curated models. parseConfig accepts any
+// well-formed custom slug (that's the day-one-models feature), so without this gate an
+// unauthenticated request could bill the most expensive model in the gateway catalog to the
+// server account — the registry whitelist used to be the bound, and this replaces it.
 export function resolveGatewayKey(
-  config: Pick<RunConfig, "gatewayKey">,
+  config: Pick<RunConfig, "model" | "gatewayKey">,
   env: Record<string, string | undefined> = process.env,
 ): string {
-  const key = config.gatewayKey || env.OPENROUTER_API_KEY;
+  if (config.gatewayKey) return config.gatewayKey;
+  if (!(config.model in MODELS)) {
+    throw new Error(
+      `Custom model "${config.model}" requires your own gateway key — add it in Settings → API keys. The server's key only covers the curated model list.`,
+    );
+  }
+  const key = env.OPENROUTER_API_KEY;
   if (!key) {
     throw new Error("OPENROUTER_API_KEY is not set (and no gateway key was provided).");
   }
