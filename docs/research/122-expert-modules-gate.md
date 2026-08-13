@@ -1,0 +1,97 @@
+# Research: X-Troll-style expert modules + gate for VERITRACE (#122)
+
+Research for [issue #122](https://github.com/noah-art3mis/veritrace/issues/122) – whether X-Troll's architecture (explicit expert-knowledge modules fused by a dynamic gate) transfers to VERITRACE's all-API pipeline as a way of encoding journalist/fact-checker domain knowledge.
+
+Primary sources read for this doc: the X-Troll paper itself (arXiv v2 PDF, saved locally at `docs/papers/xtroll-2508.16021.pdf`), the Warren et al. CHI abstract, the IFCN Code of Principles commitments page, the Verification Handbook (3rd ed.) landing page, and the VERITRACE codebase.
+
+## 1. What X-Troll actually does
+
+**Paper:** Tian, L., Zhang, X., Kim, M. M.-H., Biggs, J., & Rizoiu, M.-A. (2025). *X-Troll: eXplainable Detection of State-Sponsored Information Operations Agents.* CIKM '25. [arXiv:2508.16021](https://arxiv.org/abs/2508.16021), [DOI 10.1145/3746252.3761028](https://doi.org/10.1145/3746252.3761028). Code: `github.com/ltian678/xtroll_source`.
+
+**Task.** Not fact-checking: given a user's *timeline* of social-media posts, classify the user as troll vs non-troll, and for trolls classify the information campaign (Russia-Anti-NATO, Russia-IRA, PRC-Xinjiang). The unit of analysis is an account's behaviour over time, not a claim's truth.
+
+**Architecture** (paper §4, Fig. 1). Three components on top of a frozen pretrained LM:
+
+1. **Timeline encoding** – each post is embedded by a pretrained LM, a Transformer runs over the post sequence, and attention pooling produces one timeline representation (attention pooling beat mean/max pooling in their experiments).
+2. **Four LoRA expert adapters**, each trained on a separately annotated dataset, fused by a **dynamic gate**.
+3. A **rationale selector + summary generator** for explanations.
+
+**What each expert module encodes** (§3, §4.3.1) – the crucial point for #122 is that each adapter is trained on *expert-articulated* linguistic frameworks, not on generic troll labels:
+
+| Adapter                      | Framework it encodes                                                                                                          | Training signal                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Appraisal (LoRA_α)           | Appraisal theory (Martin & White) – ideational targeting, sentiment polarity, persona construction                             | Token-level sequence labelling on posts hand-annotated with appraisal labels by domain experts            |
+| Propaganda Identification    | Binary "is this propaganda" presence                                                                                           | Post-level DIPROMATS 2023 annotations (Moral et al.), binary cross-entropy                                |
+| Propaganda Strategy          | Specific manipulation-technique taxonomy – loaded language, appeal to commonality, doubt-and-questioning, appeal to fear, etc. | Multi-class DIPROMATS strategy annotations, categorical cross-entropy                                     |
+| Task (LoRA_t)                | Troll-specific behavioural features                                                                                            | The troll classification labels themselves (Twitter's released state-linked account takedowns, Oct 2018) |
+
+**How the gate works** (§4.3.2). Deliberately simple: each of the K = 4 adapters produces a representation h_k; a learnable scalar w_k per adapter is softmaxed into weights α_k, and the fused representation is the weighted sum h_combined = Σ α_k h_k, fed to a linear classifier. The gate is trained end-to-end with everything else – the model learns which expert to trust per input. (Note this is a global learned weighting refined during training, in the lineage of mixture-of-experts gating; the expert modules themselves are LoRA adapters per [Hu et al. 2022](https://arxiv.org/abs/2106.09685), and the multi-adapter design follows the authors' own multi-task work, e.g. MetaTroll.)
+
+**Explanations** (§4.4–4.5). A unified decoder jointly selects token-level rationales (attention score per token, threshold τ = 0.5, a sparsity budget, and a continuity regulariser that prefers coherent spans) and classifies from the pooled rationale embeddings; a summary generator then maps the selected rationale embeddings into an LLM's token space (a 2-layer MLP adapter) to produce a natural-language explanation *grounded in the selected spans and the expert frameworks* – the paper's answer to post-hoc rationalisation.
+
+**Reported results** (§5, Tables 1–3, Fig. 2 and 4; datasets: 70/31/257 troll users, ~26.7k/68.9k/24.1k posts, plus non-troll and random users; only 124–303 expert appraisal annotations per campaign):
+
+- Troll detection F1 (Gemma-7B base): X-Troll **0.648 / 0.682 / 0.717** (zero/one/five-shot) vs plain LoRA fine-tune 0.585/0.630/0.680, GPT-4 in-context 0.523 (0S), MetaTroll 0.582 (1S) / 0.689 (5S).
+- Campaign classification: X-Troll gains **10.7 / 9.6 / 8.1 percentage points** over LoRA baselines across shot settings.
+- **Ablation – the gate is load-bearing.** Full model 0.885 F1 (troll) / 0.870 (campaign). Removing the Task adapter costs the most (−7.5% / −8.2%). Without gating, single adapters drop dramatically (Appraisal alone −11.6% / −19.0%; gated Appraisal 0.822 vs non-gated 0.782). The authors' conclusion: *"effective troll detection requires dynamic integration of multiple knowledge sources rather than static combination approaches."*
+- **The gate weights are themselves findings** (§5.4, Fig. 2): Russia-Anti-NATO leans on Propaganda Strategy (0.43), Russia-IRA on Appraisal (0.39) + Task (0.27), PRC-Xinjiang is balanced (Prop-ID 0.32, Appraisal 0.25, Task 0.28) – i.e. *which expert fires characterises the campaign*, a diagnostic readout, not just plumbing.
+- Rationale selection improves G-Eval explanation scores in most configurations (+7.1% best case, −4.5% worst), so the gains are real but not uniform.
+- Their false-positive analysis (Fig. 3) is a useful caution: legitimate geopolitical discourse sharing *topic* with a campaign can trigger the ideological-framing features without any coordinated manipulation – how-it's-said signals misfire on what-is-said overlap.
+
+## 2. How this maps onto VERITRACE
+
+VERITRACE never fine-tunes – every NLP stage is an API call over a pluggable provider ([ADR 0004](../adr/0004-pluggable-reasoning-and-search-providers.md), `lib/run-config.ts:46-64`). So the transfer is structural, not literal: *explicit, modular, individually inspectable expert knowledge + an input-dependent gate whose weights are surfaced*.
+
+The pipeline stages where domain knowledge bites today:
+
+| X-Troll piece               | VERITRACE analogue                                                            | Where it lives today                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Frozen base LM              | The API reasoning model                                                        | `lib/run-config.ts:46-57` (model registry)                                                                      |
+| Expert LoRA adapter         | A versioned prompt rubric ("lens") encoding one articulated body of knowledge  | Currently *inlined and unnamed* in stage prompts – see below                                                    |
+| Dynamic gate (softmax α_k)  | A cheap routing judgment scoring which lenses apply to a claim                 | Doesn't exist; nearest kin is triage's per-claim `checkable`/`checkworthy`/`relevance` (`lib/pipeline/triage.ts:29-31`) |
+| Gate weights as diagnostics | Lens scores surfaced on the claim card / question trace                        | Doesn't exist                                                                                                   |
+| Rationale grounding         | The evidence graph itself (QA-pairs as explanation)                            | Whole pipeline; README "process-based explainability"                                                           |
+| Task adapter                | The stated, deterministic verdict rule                                         | `lib/pipeline/verdict.ts:24-72`                                                                                 |
+
+**The key code observation: proto-lenses already exist, anonymously.** The classify prompt hard-codes two fully articulated fact-checker heuristics – *temporal logic* (a pre-event source cannot refute an event claim; `lib/pipeline/classify.ts:21`) and *quantifier-scope logic* (one individual's act does not support a collective claim; `lib/pipeline/classify.ts:23`), the latter mirrored in triage (`lib/pipeline/triage.ts:27`). These are exactly what #122 calls "articulable journalist knowledge", already written down – but as unnamed prose clauses applied to *every* claim, invisible as modules, unversioned, and un-gated. The lens proposal is largely a refactor of an existing pattern into named, routed, surfaced units, plus new lenses (statistical, science/health, political-quote provenance, rhetoric).
+
+**The knowledge is articulable – the assumption checks out against primary sources.** Warren, Shklovski & Augenstein's CHI '25 interview study ([DOI 10.1145/3706598.3713277](https://doi.org/10.1145/3706598.3713277), [arXiv:2502.09083](https://arxiv.org/abs/2502.09083)) found fact-checkers want explanations that "trace the model's reasoning path, reference specific evidence, and highlight uncertainty and information gaps" – the study's existence presupposes the practices are describable, and its transparency requirement is precisely "surface the gate". Institutionally, the [IFCN Code of Principles](https://ifcncodeofprinciples.poynter.org/know-more/the-commitments-of-the-code-of-principles) *obliges* signatories to publish their selection/research/publishing methodology, identify all significant evidence sources so readers can replicate the work, and prefer primary over secondary sources – i.e. the profession already writes its heuristics down as public method statements (note how closely "prefer primary sources / replicable evidence trail" tracks `verdict.ts`'s echo-chamber guard, `lib/pipeline/verdict.ts:54-59`). The [Verification Handbook, 3rd ed.](https://datajournalism.com/read/handbook/verification-3) (ed. Craig Silverman) is a further corpus of articulated technique – account verification, image verification, website/network attribution – much of which maps to VERITRACE's declared *out-of-scope* claim types (media provenance → `checkable: false`), which is itself a lens-shaped judgment triage already makes (`lib/pipeline/triage.ts:29`).
+
+## 3. Concrete options
+
+### Option A – prompt-level lenses + observable gate (issue path 1; recommended)
+
+- **Lens =** a named, versioned rubric string (e.g. `lenses/statistical.ts`) encoding one articulated body of knowledge, seeded from the CHI corpus and published methodology pages – never invented in-house. Where the knowledge is tacit, no lens.
+- **Gate =** per-claim lens scores. Cheapest placement: extend the existing triage output object (`lib/pipeline/triage.ts:11-17`) with a `lenses: {id: weight}` field – triage already reads every utterance once with the full source text in context, so the gate costs ~zero extra calls; alternatively a separate small-model call (ADR 0004 already allows per-stage model choice).
+- **Conditioning =** selected lenses are appended to the stage prompts where knowledge bites: `questions.ts` `systemPrompt` (`lib/pipeline/questions.ts:7-16` – currently one generic prompt; a statistical lens would ask for the denominator/base rate) and `classify.ts` `SYSTEM` (`lib/pipeline/classify.ts:13-28` – a science lens knows press release ≠ paper).
+- **Observability =** the gate vector rendered on the claim card / question trace ("analyzed under: statistical 0.8, rhetoric 0.5") – the analogue of X-Troll's Fig. 2 radar, and the piece Warren et al.'s subjects asked for. Advisory and overridable, like the re-include-a-dropped-claim affordance (#33).
+- **Config =** one `RunConfig` boolean (`expertLenses`), not N toggles – `RunConfig` is already 20+ fields (`lib/run-config.ts:150-206`, sprawl audit #113); the gate decides the rest. Budget: cap lenses per claim (2 is plenty), same spirit as ADR 0005's caps.
+
+X-Troll's ablation is the design argument for gating rather than "apply every lens always": static combination was strictly worse (−11.6/−19.0% for ungated experts), it costs more (every lens in every prompt), and it blurs the explanation – a claim legibly analysed under *few* fitting frameworks is the readable outcome.
+
+### Option B – rhetoric/propaganda annotation pass (issue path 2)
+
+A self-contained optional stage tagging Source-text spans with the propaganda-technique taxonomy X-Troll's Strategy adapter uses (loaded language, appeal to commonality, doubt-and-questioning – DIPROMATS/Da San Martino lineage). Boundary discipline is everything: **propaganda detection is about how something is said; fact-checking is about what is said** – and X-Troll's own false-positive analysis (Fig. 3) shows how-signals misfire on topic overlap. So a rhetoric tag must be *contextualize-only*: it behaves like low-reliability evidence under the deterministic verdict rule and never passes `isDeciding` (`lib/pipeline/verdict.ts:24-30`) – shown greyed like relevance-dropped claims, never moving a verdict. It adds the "how" axis the graph currently lacks, at the price of a new stage and a new failure mode (over-tagging ordinary heated speech).
+
+### Option C – the literal architecture (issue path 3; deferred)
+
+If a self-hosted model ever lands behind the provider seam, X-Troll is the recipe: small expert-annotated datasets per framework (they got signal from as few as 124–303 expert annotations per campaign) → one LoRA each → learned softmax gate → rationale-grounded explanation head. Parameter-efficient and – the property that matters here more than accuracy – each expert stays individually auditable. Contradicts the current "no local model in the critical path" decision (ADR 0001), so this is a recipe on the shelf, not a plan.
+
+## 4. Trade-offs and recommendation
+
+| Option              | Cost                                             | Faithfulness                                                                     | Risk                                                                |
+| ------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| A: lenses + gate    | ~1 cheap gate judgment; longer conditioned prompts | Gate is an LLM self-report – observable, *not* guaranteed faithful                | Lens sprawl; fake rubrics where knowledge is tacit                   |
+| B: rhetoric pass    | 1 extra tagging call per run                     | Grounded in a published taxonomy, but span-tagging by LLM is noisy                 | How/what boundary erosion; false positives on legitimate hot speech |
+| C: literal LoRAs    | Training + hosting infra                         | Gate weights are real learned parameters (the only truly faithful gate of the 3)   | Contradicts ADR 0001; annotation cost; hackathon-inappropriate      |
+
+One honest caveat to record: in X-Troll the gate weights are *actual parameters of the mechanism* – reading them off is faithful by construction. A prompt-level gate is another LLM judgment about itself; surfacing it makes it observable and overridable, which is VERITRACE's standard for every other stage (transparency principle), but it should be labelled advisory routing, exactly as the README already treats rationales.
+
+**Recommendation – the issue's first slice, confirmed by this research:** gate + **one** lens (statistical claims), conditioning **only** question generation, with the gate weight shown in the question trace. It exercises every architectural piece (routing, conditioning, observability) with minimal new surface: one field on the triage output, one lens module, one prompt-template parameter in `questions.ts`, one `RunConfig` boolean. Extend to `classify.ts` conditioning and further lenses only after the first lens demonstrably changes the questions asked (a before/after on a statistical demo claim is the acceptance test). Option B is a good second, strictly contextualize-only. Option C stays on the shelf with the paper.
+
+## 5. Unverified / needs source access
+
+- **Warren et al. interview details** – only the abstract was accessible; the number of fact-checkers interviewed and the specific articulated heuristics (source criticism, lateral reading, provenance) claimed in the issue body could not be confirmed against the full text. Verify at https://doi.org/10.1145/3706598.3713277 or https://arxiv.org/abs/2502.09083 before seeding lens content from it.
+- **Verification Handbook checklist specifics** – the landing page confirms scope and editorship but not chapter-level heuristics (e.g. First Draft's provenance/source/date/location/motivation checks). Verify in the full chapters at https://datajournalism.com/read/handbook/verification-3 before citing a specific checklist in a lens.
+- **DIPROMATS taxonomy detail** – X-Troll's §3.2 names three core techniques (loaded language, appeal to commonality, doubt-and-questioning); the full DIPROMATS 2023 category list should be confirmed at the shared-task site (https://sites.google.com/view/dipromats2023, cited as ref [32]) before Option B adopts it.
+- **Camera-ready vs arXiv** – numbers above are from arXiv v2 (27 Aug 2025); the ACM CIKM camera-ready (DOI above) was not compared and could differ marginally.
